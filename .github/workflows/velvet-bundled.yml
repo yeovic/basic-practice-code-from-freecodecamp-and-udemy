@@ -7,7 +7,7 @@ on:
       - 'velvet/**'
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 jobs:
   apk:
     runs-on: ubuntu-latest
@@ -122,13 +122,13 @@ jobs:
           CHUNK=128*1024*1024
           total=model.stat().st_size
           assert total>2_000_000_000 and total<2_500_000_000,total
-          with zipfile.ZipFile(path,'a',compression=zipfile.ZIP_STORED,allowZip64=False) as apk:
+          with zipfile.ZipFile(path,'a',compression=zipfile.ZIP_DEFLATED,compresslevel=6,allowZip64=False) as apk:
             with model.open('rb') as inp:
               i=0
               while True:
                 data=inp.read(CHUNK)
                 if not data:break
-                apk.writestr('assets/included/part-%03d.bin'%i,data,compress_type=zipfile.ZIP_STORED)
+                apk.writestr('assets/included/part-%03d.bin'%i,data,compress_type=zipfile.ZIP_DEFLATED,compresslevel=6)
                 print('Included chunk',i,len(data),flush=True)
                 i+=1
           with zipfile.ZipFile(path) as apk:
@@ -164,3 +164,13 @@ jobs:
           if-no-files-found: error
           compression-level: 0
           retention-days: 30
+
+      - name: Publish single APK direct download
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create velvet-atelier-2 \
+            dist/Velvet_Atelier_MeinaHentai_v2_Offline.apk \
+            --title "Velvet Atelier 2 - Offline Android" \
+            --notes "Personal noncommercial Android build with on-device SD1.5 model included. Based on Local Dream. First run requires model preparation and free storage." \
+            --target velvet-atelier-apk
