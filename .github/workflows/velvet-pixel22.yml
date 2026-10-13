@@ -88,17 +88,17 @@ jobs:
           assert package.group(1)==original,package.group(1)
           m=m[:package.start(1)]+"org.velvetatelier.pixel22"+m[package.end(1):]
           m=m.replace('<manifest ', '<manifest android:installLocation="preferExternal" ',1)
-          m=re.sub(r'android:name="\\.([^"]+)"',lambda mt:'android:name="'+original+'.'+mt.group(1)+'"',m)
+          m=re.sub(r'android:name="\.([^"]+)"',lambda mt:'android:name="'+original+'.'+mt.group(1)+'"',m)
           # The Pixel Studio hub becomes the sole launcher while the original
           # model generation MainActivity remains inside the APK and is opened
           # explicitly from the new home screen.
-          activity_pattern=(r'(<activity\\b[^>]*android:name="'
-                            +re.escape(original)+r'\\.MainActivity"[^>]*>)'
-                            r'([\\s\\S]*?)(</activity>)')
+          activity_pattern=(r'(<activity\b[^>]*android:name="'
+                            +re.escape(original)+r'\.MainActivity"[^>]*>)'
+                            r'([\s\S]*?)(</activity>)')
           def strip_old_launcher(mt):
             inner=re.sub(
-               r'<intent-filter>[\\s\\S]*?android.intent.category.LAUNCHER'
-               r'[\\s\\S]*?</intent-filter>', '',mt.group(2),count=1)
+               r'<intent-filter>[\s\S]*?android.intent.category.LAUNCHER'
+               r'[\s\S]*?</intent-filter>', '',mt.group(2),count=1)
             if inner==mt.group(2):raise RuntimeError("Original app launcher not found")
             return mt.group(1)+inner+mt.group(3)
           m,num=re.subn(activity_pattern,strip_old_launcher,m,count=1)
@@ -117,7 +117,7 @@ jobs:
                     </activity>
                     <activity android:name="org.velvetatelier.PixelStudioActivity"
                       android:exported="false"
-                      android:theme="@android:style/Theme.Material.NoActionBar" />\\n''')
+                      android:theme="@android:style/Theme.Material.NoActionBar" />\n''')
           m=m.replace("</application>",provider+hub+"</application>",1)
           manifest.write_text(m)
           license_path=root/'assets/VELVET_ATELIER_ATTRIBUTION.txt'
