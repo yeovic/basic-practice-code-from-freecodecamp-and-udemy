@@ -53,7 +53,7 @@ public final class ModelStorage {
                     }
                     if (candidate.mkdirs() || candidate.isDirectory()) {
                         Log.i(TAG, "Using removable microSD for local model weights");
-                        return candidate;
+                        return root;
                     }
                 } catch (Exception ex) {
                     Log.w(TAG, "External storage unavailable, using internal storage", ex);
