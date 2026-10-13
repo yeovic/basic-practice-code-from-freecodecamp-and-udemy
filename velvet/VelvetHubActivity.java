@@ -59,11 +59,42 @@ public final class VelvetHubActivity extends Activity {
         divider(body);
         title(body,"Storage",18,true);
         String path=ModelStorage.modelsDir(this).getAbsolutePath();
-        subtitle(body,"Current AI model folder:\n"+path+"\nRemovable SD card is preferred when available; Android chooses the APK installation location.");
-        action(body,"Refresh storage information",()->{
+        subtitle(body,"Current AI model folder:\\n"+path+"\\nChoose internal for potentially faster model loading or microSD to save internal space. Android controls the APK installation location.");
+        action(body,"Storage: prefer speed / save space",()->{
+            if(IncludedModelProvider.isBusy()){
+                new android.app.AlertDialog.Builder(this)
+                    .setMessage("Storage cannot be switched during checkpoint extraction or conversion.")
+                    .setPositiveButton("OK",null).show();
+                return;
+            }
+            String[] labels={
+                "Auto: microSD when available",
+                "Prefer speed: internal storage",
+                "Prefer space: removable microSD"
+            };
+            new android.app.AlertDialog.Builder(this)
+                .setTitle("Choose local model storage")
+                .setSingleChoiceItems(labels,ModelStorage.getMode(this),(dialog,choice)->{
+                    dialog.dismiss();
+                    new android.app.AlertDialog.Builder(this)
+                        .setTitle("Change model storage?")
+                        .setMessage("Your existing model files stay in their previous folder. "
+                            +"If the selected location has no converted model, initial setup "
+                            +"must run there again and requires at least 6 GB free. "
+                            +"Changing storage does NOT copy a ready model automatically. "
+                            +"For speed, keep the converted model on internal storage.")
+                        .setNegativeButton("Cancel",null)
+                        .setPositiveButton("Use location",(confirm,which)->{
+                            ModelStorage.setMode(this,choice);
+                            IncludedModelProvider.startSetup(this);
+                            modelStatus.setText(IncludedModelProvider.currentStatus(this));
+                        }).show();
+                }).setNegativeButton("Cancel",null).show();
+        });
+        action(body,"View active model folder",()->{
             new android.app.AlertDialog.Builder(this)
                 .setTitle("AI model storage")
-                .setMessage(ModelStorage.modelsDir(this).getAbsolutePath())
+                .setMessage(ModelStorage.describeMode(this))
                 .setPositiveButton("OK",null).show();
         });
         subtitle(body,"Original inference engine: Local Dream by xororz and contributors (CC BY-NC 4.0). Bundled checkpoint: MeinaHentai v2.1 (Open RAIL-M). This is a noncommercial fork.");
