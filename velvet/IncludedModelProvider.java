@@ -30,14 +30,28 @@ public final class IncludedModelProvider extends ContentProvider {
     private static volatile boolean started = false;
     public static boolean isBusy(){return started;}
 
+    private static final String[] REQUIRED_MODEL_FILES={
+        "clip_v2.mnn","clip_v2.mnn.weight","unet.mnn","unet.mnn.weight",
+        "vae_decoder.mnn","vae_decoder.mnn.weight",
+        "vae_encoder.mnn","vae_encoder.mnn.weight",
+        "pos_emb.bin","token_emb.bin"
+    };
+    /** Validate actual native inference assets, not just a stale marker file. */
+    static boolean modelReady(File dir) {
+        if(!new File(dir,"finished").isFile())return false;
+        for(String relative:REQUIRED_MODEL_FILES) {
+            File asset=new File(dir,relative);
+            if(!asset.isFile()||asset.length()<1)return false;
+        }
+        return true;
+    }
     private static volatile String status = "Checking included model";
     private static volatile String lastError = "";
     private static volatile int progressPercent = 0;
 
     public static String currentStatus(Context c) {
         File dir=new File(ModelStorage.modelsDir(c),MODEL);
-        File finished=new File(dir,"finished");
-        if(finished.isFile())return "READY — MeinaHentai v2.1 installed in "+dir.getAbsolutePath();
+        if(modelReady(dir))return "READY — MeinaHentai v2.1 installed in "+dir.getAbsolutePath();
         String state=status;
         if(state.startsWith("READY")) {
             state="NOT READY in the selected storage. Tap Retry / Continue Model Setup.";
@@ -57,7 +71,7 @@ public final class IncludedModelProvider extends ContentProvider {
     public static synchronized void startSetup(Context c) {
         Context app=c.getApplicationContext();
         File dir=new File(ModelStorage.modelsDir(app),MODEL);
-        if(new File(dir,"finished").isFile()) {
+        if(modelReady(dir)) {
             status="READY — MeinaHentai v2.1";return;
         }
         if(started)return;
@@ -89,6 +103,12 @@ public final class IncludedModelProvider extends ContentProvider {
     private static void install(Context c) {
         File dir = new File(ModelStorage.modelsDir(c), MODEL);
         try {
+            // The model might have a stale finished marker left from an
+            // incomplete installation. Do not suppress a repair attempt.
+            if(new File(dir,"finished").exists()&&!modelReady(dir)){
+                if(!new File(dir,"finished").delete())
+                    throw new IOException("Cannot remove stale finished marker");
+            }
             // Preserve the downloaded checkpoint between failures. Repeatedly
             // unpacking 2.13 GB on conversion errors is slow and wears storage.
             if (!dir.isDirectory() && !dir.mkdirs())
@@ -186,8 +206,9 @@ public final class IncludedModelProvider extends ContentProvider {
                 }
             }
             int code=proc.waitFor();
-            if(code!=0 || !new File(dir,"finished").isFile())
-                throw new IOException("Model conversion failed (exit "+code+"): "+lastLine);
+            if(code!=0 || !modelReady(dir))
+                throw new IOException("Model conversion incomplete or failed (exit "+code
+                   +"): "+lastLine+"; check native MNN weights");
             if(!original.delete())
                 Log.w(TAG,"Unable to reclaim 2.13 GB checkpoint after conversion");
             new File(dir,"clip_skip_1.mnn").delete();
