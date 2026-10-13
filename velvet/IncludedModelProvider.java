@@ -30,20 +30,8 @@ public final class IncludedModelProvider extends ContentProvider {
     private static volatile boolean started = false;
     public static boolean isBusy(){return started;}
 
-    private static final String[] REQUIRED_MODEL_FILES={
-        "clip_v2.mnn","clip_v2.mnn.weight","unet.mnn","unet.mnn.weight",
-        "vae_decoder.mnn","vae_decoder.mnn.weight",
-        "vae_encoder.mnn","vae_encoder.mnn.weight",
-        "pos_emb.bin","token_emb.bin"
-    };
-    /** Validate actual native inference assets, not just a stale marker file. */
-    static boolean modelReady(File dir) {
-        if(!new File(dir,"finished").isFile())return false;
-        for(String relative:REQUIRED_MODEL_FILES) {
-            File asset=new File(dir,relative);
-            if(!asset.isFile()||asset.length()<1)return false;
-        }
-        return true;
+    static boolean modelReady(File dir){
+        return ModelArtifactVerifier.ready(dir);
     }
     private static volatile String status = "Checking included model";
     private static volatile String lastError = "";
