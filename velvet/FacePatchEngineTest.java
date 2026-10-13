@@ -38,7 +38,7 @@ public final class FacePatchEngineTest {
             "Large size preference contradicted by negative prompt");
         System.out.println("PASS: face/hand/body/anatomy repair prompts and size-aware negatives");
         int[] originalCrop=new int[rect.size*rect.size];
-        java.util.Arrays.fill(originalCrop,0xff151515);
+        java.util.Arrays.fill(originalCrop,0xff202020);
         int[] cropOnly=FacePatchEngine.compositePatch(originalCrop,patch,rect.size,6,.9f);
         for(int py=0;py<rect.size;py++){
             for(int px=0;px<rect.size;px++){
