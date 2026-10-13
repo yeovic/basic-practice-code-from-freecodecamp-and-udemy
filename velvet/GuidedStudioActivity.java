@@ -83,6 +83,7 @@ public final class GuidedStudioActivity extends Activity {
         name=input("Character name (for saving, not a reliable model token)","Yuki",false);
         age=input("Adult age", "25",false);
         age.setInputType(InputType.TYPE_CLASS_NUMBER);
+        age.setText("25"); // previous build only showed a hint, leaving age blank
         identity=choice("Character type",PromptBuilder.IDENTITIES);
         figure=choice("Body type",PromptBuilder.BODIES);
         figure.setSelection(1);
