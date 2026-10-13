@@ -61,6 +61,10 @@ public final class VelvetHubActivity extends Activity {
         subtitle(body,"Import saved AI images or photos. Enlarge 2×, 3×, or 4× using high-quality Lanczos3, fast bilinear, or true pixel-perfect scaling. All processing happens offline on your phone.");
         action(body,"Open Image Upscaler",()->startActivity(new Intent(this,ImageUpscaleActivity.class)));
         divider(body);
+        title(body,"Native Face Repair",20,true);
+        subtitle(body,"Fix distorted anime faces locally with the existing MeinaHentai model. Tap the face, run a cropped image-to-image refinement, and export a feather-blended PNG. Does not need another model.");
+        action(body,"Open Face Repair Studio",()->startActivity(new Intent(this,FaceRepairStudioActivity.class)));
+        divider(body);
         title(body,"Storage",18,true);
         String path=ModelStorage.modelsDir(this).getAbsolutePath();
         subtitle(body,"Current AI model folder:\n"+path+"\nChoose internal for potentially faster model loading or microSD to save internal space. Android controls the APK installation location.");
