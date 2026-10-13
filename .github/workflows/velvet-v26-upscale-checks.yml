@@ -1,4 +1,4 @@
-name: Velvet v2.7 MNN Recovery QA
+name: Velvet v2.8 Quality & MultiPass QA
 on:
   push:
     branches: [velvet-atelier-apk]
@@ -9,6 +9,9 @@ on:
       - 'velvet/ImageUpscaleActivity.java'
       - 'velvet/VelvetHubActivity.java'
       - 'velvet/GuidedStudioActivity.java'
+      - 'velvet/QualityTuning.java'
+      - 'velvet/QualityTuningTest.java'
+      - 'velvet/LongPromptPlanner.java'
       - 'velvet/IncludedModelProvider.java'
       - 'velvet/ModelDiagnostics.java'
       - 'velvet/ModelArtifactVerifier.java'
@@ -32,7 +35,8 @@ jobs:
           java -cp build/upscaleqa org.velvetatelier.ModelArtifactVerifierTest
           javac -d build/upscaleqa velvet/ImageResampler.java velvet/ImageResamplerTest.java
           java -cp build/upscaleqa org.velvetatelier.ImageResamplerTest
-          javac -d build/upscaleqa velvet/PromptBuilder.java velvet/PromptBuilderTest.java
+          javac -d build/upscaleqa velvet/QualityTuning.java velvet/LongPromptPlanner.java velvet/PromptBuilder.java velvet/PromptBuilderTest.java velvet/QualityTuningTest.java
+          java -cp build/upscaleqa org.velvetatelier.QualityTuningTest
           java -cp build/upscaleqa org.velvetatelier.PromptBuilderTest
       - name: Android API compilation
         run: |
@@ -42,6 +46,7 @@ jobs:
             velvet/PixelEngine.java velvet/GifWriter.java \
             velvet/PixelStudioActivity.java velvet/VelvetHubActivity.java \
             velvet/PromptBuilder.java velvet/GuidedStudioActivity.java \
+            velvet/QualityTuning.java velvet/LongPromptPlanner.java \
             velvet/ImageResampler.java velvet/ImageUpscaleActivity.java \
             velvet/ModelDiagnostics.java velvet/ModelArtifactVerifier.java
-          echo 'PASS: v2.7 Android installer and diagnostics compilation'
+          echo 'PASS: v2.8 face/anatomy/style/long-prompt UI compilation'
