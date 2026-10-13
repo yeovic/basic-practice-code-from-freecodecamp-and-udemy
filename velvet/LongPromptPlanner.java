@@ -70,6 +70,10 @@ public final class LongPromptPlanner {
             throw new IllegalArgumentException("Prompt exceeds 12 passes. Shorten details before generation.");
         return new Plan(passes,total);
     }
+    public static int approxWords(String prompt){
+        if(prompt==null || prompt.trim().isEmpty())return 0;
+        return prompt.trim().split("\\s+").length;
+    }
     public static String instructions(Plan plan){
         if(plan==null||plan.passes.isEmpty())return "No prompt passes";
         if(!plan.requiresImg2Img)
