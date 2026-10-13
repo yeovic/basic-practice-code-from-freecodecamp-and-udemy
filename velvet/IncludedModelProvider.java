@@ -28,7 +28,7 @@ public final class IncludedModelProvider extends ContentProvider {
     @Override public boolean onCreate() {
         Context context = getContext();
         if (context == null) return true;
-        File ready = new File(new File(new File(context.getFilesDir(), "models"), MODEL), "finished");
+        File ready = new File(new File(ModelStorage.modelsDir(context), MODEL), "finished");
         if (ready.isFile()) return true;
         synchronized (IncludedModelProvider.class) {
             if (started) return true;
@@ -52,11 +52,11 @@ public final class IncludedModelProvider extends ContentProvider {
         } catch(Exception e) { Log.w(TAG,"Notification unavailable",e); }
     }
     private static void install(Context c) {
-        File dir = new File(new File(c.getFilesDir(),"models"), MODEL);
+        File dir = new File(ModelStorage.modelsDir(c), MODEL);
         try {
-            StatFs stat = new StatFs(c.getFilesDir().getAbsolutePath());
+            StatFs stat = new StatFs(ModelStorage.modelsDir(c).getAbsolutePath());
             if (stat.getAvailableBytes() < 6L * 1024 * 1024 * 1024)
-                throw new IOException("At least 6 GB free space required for unpacking and conversion.");
+                throw new IOException("At least 6 GB free on selected storage (SD card or internal) for conversion.");
             notifyState(c,"Preparing bundled model. Large offline conversion in progress.",false);
             new android.os.Handler(android.os.Looper.getMainLooper()).post(() ->
                 android.widget.Toast.makeText(c,"Installing included anime model. Reopen after setup is complete.",android.widget.Toast.LENGTH_LONG).show());
