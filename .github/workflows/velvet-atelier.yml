@@ -1,8 +1,7 @@
 name: Build Velvet Atelier (noncommercial)
 on:
-  push:
-    branches: [velvet-atelier-apk]
   workflow_dispatch:
+
 permissions:
   contents: read
 jobs:
