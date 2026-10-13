@@ -20,6 +20,7 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.Spinner;
 import android.widget.TextView;
+import android.widget.AdapterView;
 import android.widget.Toast;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -38,6 +39,8 @@ public final class GuidedStudioActivity extends Activity {
     private static final String SAVED="characters";
     private LinearLayout body;
     private Spinner savedProfiles,scene,contentLevel,camera,identity,figure,chest,hips,genitals,expression,style,quality;
+    private Spinner penisSize,penisState,testicles,bulge,speedProfile;
+    private LinearLayout penisControls;
     private EditText name,age,hair,eyes,clothing,traits,userPrompt,customNegative,seed;
     private CheckBox anatomyPriority,freeform;
     private TextView recipePreview,negativePreview,configPreview;
@@ -72,6 +75,9 @@ public final class GuidedStudioActivity extends Activity {
         style=choice("Rendering",PromptBuilder.STYLES);
         quality=choice("Generation preference",PromptBuilder.QUALITY);
         quality.setSelection(1);
+        speedProfile=choice("Render speed / detail",PromptBuilder.SPEED_PROFILES);
+        speedProfile.setSelection(1);
+        note("Fast reduces sampling steps; the suggested 384×384 preview resolution must be set manually inside the generator.");
         line();
         title("Adult character builder",18);
         name=input("Character name (for saving, not a reliable model token)","Yuki",false);
@@ -85,6 +91,23 @@ public final class GuidedStudioActivity extends Activity {
         hips=choice("Hips",PromptBuilder.HIPS);
         hips.setSelection(1);
         genitals=choice("Anatomy (only prompt when explicitly chosen)",PromptBuilder.GENITALS);
+        penisControls=new LinearLayout(this);
+        penisControls.setOrientation(LinearLayout.VERTICAL);
+        body.addView(penisControls,new LinearLayout.LayoutParams(-1,-2));
+        penisSize=choiceIn(penisControls,"Penis size (Average by default)",PromptBuilder.PENIS_SIZES);
+        penisSize.setSelection(2);
+        penisState=choiceIn(penisControls,"Penis state",PromptBuilder.PENIS_STATES);
+        testicles=choiceIn(penisControls,"Testicles",PromptBuilder.TESTICLE_OPTIONS);
+        bulge=choiceIn(penisControls,"Clothed bulge",PromptBuilder.BULGE_OPTIONS);
+        AdapterView.OnItemSelectedListener visibility=new AdapterView.OnItemSelectedListener(){
+            @Override public void onItemSelected(AdapterView<?> parent,View view,int position,long id) {
+                refreshPenisControls();
+            }
+            @Override public void onNothingSelected(AdapterView<?> parent){}
+        };
+        genitals.setOnItemSelectedListener(visibility);
+        identity.setOnItemSelectedListener(visibility);
+        refreshPenisControls();
         expression=choice("Presentation",PromptBuilder.EXPRESSIONS);
         hair=input("Hair / hairstyle","white hair",false);
         eyes=input("Eyes","blue eyes",false);
@@ -118,6 +141,7 @@ public final class GuidedStudioActivity extends Activity {
         title("How generation works",17);
         note("The guided recipe is copied in Local Dream's import format. In the generator choose MeinaHentaiV21 under Custom Models when READY, then accept the parameter-import dialog. Your freeform text remains editable there.");
         note("If nude/sexual selections still produce fully clothed images, verify Content level is not Clothed and inspect the imported POSITIVE/NEGATIVE prompts in the generator. The unfiltered Android release is used; model behavior can vary by tag and checkpoint.");
+        note("Tip: Average or Small size gives proportions that may look more natural. For exposed anatomy, Size and State are independent. If the model exaggerates size anyway, inspect imported negative prompts.");
         note("For four previews choose the generator's batch count of 4. Select a favorite image from the history; for a second pass enter its seed above or use Local Dream's existing img2img / inpaint repair tools. This build does not automatically repair image anatomy.");
         note("MeinaHentai v2.1 is a locally converted SD1.5 anime model. Presets improve prompting, but anatomical quality depends on the model and device.");
         note("All profiles are saved locally in app preferences. No profile data is uploaded.");
@@ -162,6 +186,26 @@ public final class GuidedStudioActivity extends Activity {
         spin.setAdapter(adapter);body.addView(spin);
         return spin;
     }
+    private Spinner choiceIn(LinearLayout parent,String label,String[] values){
+        TextView title=new TextView(this);
+        title.setText(label);title.setTextSize(13);
+        title.setTextColor(0xffcfc0da);
+        title.setPadding(0,dp(7),0,dp(6));
+        parent.addView(title);
+        Spinner spinner=new Spinner(this);
+        spinner.setAdapter(new ArrayAdapter<>(this,
+            android.R.layout.simple_spinner_dropdown_item,values));
+        parent.addView(spinner);
+        return spinner;
+    }
+    private void refreshPenisControls(){
+        if(penisControls==null||identity==null||genitals==null)return;
+        int g=genitals.getSelectedItemPosition();
+        int id=identity.getSelectedItemPosition();
+        boolean show=(g==2||g==3 || (g==0&&(id==2||id==3)));
+        penisControls.setVisibility(show?View.VISIBLE:View.GONE);
+    }
+
     private EditText input(String label,String hint,boolean multi){
         note(label);
         EditText v=new EditText(this);v.setTextColor(INK);v.setHintTextColor(0xffa995b4);
@@ -188,10 +232,15 @@ public final class GuidedStudioActivity extends Activity {
         c.body=figure.getSelectedItemPosition();c.chest=chest.getSelectedItemPosition();
         c.hips=hips.getSelectedItemPosition();c.genitals=genitals.getSelectedItemPosition();
         c.expression=expression.getSelectedItemPosition();
+        c.penisSize=penisSize.getSelectedItemPosition();
+        c.penisState=penisState.getSelectedItemPosition();
+        c.testicles=testicles.getSelectedItemPosition();
+        c.bulge=bulge.getSelectedItemPosition();
         s.character=c;s.scene=scene.getSelectedItemPosition();
         s.style=style.getSelectedItemPosition();s.quality=quality.getSelectedItemPosition();
         s.contentLevel=contentLevel.getSelectedItemPosition();
         s.camera=camera.getSelectedItemPosition();
+        s.speedProfile=speedProfile.getSelectedItemPosition();
         s.anatomyPriority=anatomyPriority.isChecked();
         s.freeformOnly=freeform.isChecked();
         s.userPrompt=str(userPrompt);s.extraNegative=str(customNegative);s.seed=str(seed);
@@ -265,6 +314,10 @@ public final class GuidedStudioActivity extends Activity {
         j.put("identity",c.identity);j.put("body",c.body);
         j.put("chest",c.chest);j.put("hips",c.hips);
         j.put("genitals",c.genitals);j.put("expression",c.expression);
+        j.put("penisSize",c.penisSize);
+        j.put("penisState",c.penisState);
+        j.put("testicles",c.testicles);
+        j.put("bulge",c.bulge);
         return j;
     }
     private PromptBuilder.Character characterOf(JSONObject j){
@@ -278,6 +331,10 @@ public final class GuidedStudioActivity extends Activity {
         c.identity=j.optInt("identity",0);c.body=j.optInt("body",1);
         c.chest=j.optInt("chest",1);c.hips=j.optInt("hips",1);
         c.genitals=j.optInt("genitals",0);c.expression=j.optInt("expression",0);
+        c.penisSize=j.optInt("penisSize",2);
+        c.penisState=j.optInt("penisState",0);
+        c.testicles=j.optInt("testicles",0);
+        c.bulge=j.optInt("bulge",0);
         return c;
     }
     private void loadProfiles(){
@@ -310,6 +367,11 @@ public final class GuidedStudioActivity extends Activity {
         select(identity,c.identity);select(figure,c.body);
         select(chest,c.chest);select(hips,c.hips);
         select(genitals,c.genitals);select(expression,c.expression);
+        select(penisSize,c.penisSize);
+        select(penisState,c.penisState);
+        select(testicles,c.testicles);
+        select(bulge,c.bulge);
+        refreshPenisControls();
     }
     private void saveProfile(){
         try{
@@ -357,6 +419,7 @@ public final class GuidedStudioActivity extends Activity {
             JSONObject j=jsonOf(v.character);
             j.put("scene",v.scene);j.put("style",v.style);j.put("quality",v.quality);
             j.put("contentLevel",v.contentLevel);j.put("camera",v.camera);
+            j.put("speedProfile",v.speedProfile);
             j.put("freeformOnly",v.freeformOnly);
             j.put("anatomyPriority",v.anatomyPriority);
             j.put("userPrompt",v.userPrompt);
@@ -376,6 +439,7 @@ public final class GuidedStudioActivity extends Activity {
             select(scene,j.optInt("scene",0));
             select(contentLevel,j.optInt("contentLevel",0));
             select(camera,j.optInt("camera",0));
+            select(speedProfile,j.optInt("speedProfile",1));
             select(style,j.optInt("style",0));select(quality,j.optInt("quality",1));
             freeform.setChecked(j.optBoolean("freeformOnly",false));
             anatomyPriority.setChecked(j.optBoolean("anatomyPriority",true));
