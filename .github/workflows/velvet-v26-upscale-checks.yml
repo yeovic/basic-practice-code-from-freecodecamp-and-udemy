@@ -1,4 +1,4 @@
-name: Velvet v2.7 Model & Profile QA
+name: Velvet v2.7 MNN Recovery QA
 on:
   push:
     branches: [velvet-atelier-apk]
@@ -10,7 +10,9 @@ on:
       - 'velvet/VelvetHubActivity.java'
       - 'velvet/GuidedStudioActivity.java'
       - 'velvet/IncludedModelProvider.java'
-      - 'velvet/ModelDiagnostics.java'
+      - 'velvet/ModelDiagnostics.java velvet/ModelArtifactVerifier.java'
+      - 'velvet/ModelArtifactVerifier.java'
+      - 'velvet/ModelArtifactVerifierTest.java'
   workflow_dispatch:
 permissions:
   contents: read
@@ -26,6 +28,8 @@ jobs:
       - name: Java image-quality roundtrip checks
         run: |
           mkdir -p build/upscaleqa
+          javac -d build/upscaleqa velvet/ModelArtifactVerifier.java velvet/ModelArtifactVerifierTest.java
+          java -cp build/upscaleqa org.velvetatelier.ModelArtifactVerifierTest
           javac -d build/upscaleqa velvet/ImageResampler.java velvet/ImageResamplerTest.java
           java -cp build/upscaleqa org.velvetatelier.ImageResamplerTest
           javac -d build/upscaleqa velvet/PromptBuilder.java velvet/PromptBuilderTest.java
