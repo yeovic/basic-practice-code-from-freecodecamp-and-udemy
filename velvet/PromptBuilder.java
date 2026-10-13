@@ -29,7 +29,7 @@ public final class PromptBuilder {
     public static final String[] HIPS={"Narrow","Balanced","Wide","Curvy"};
     public static final String[] GENITALS={"Not specified","Vulva","Penis","Penis and testicles","Tucked","Clothed / concealed"};
     public static final String[] EXPRESSIONS={"Feminine","Very feminine","Androgynous","Tomboyish","Masculine"};
-    public static final String[] STYLES={"Anime illustration","Soft anime painting","Detailed lineart","Retro pixel art"};
+    public static final String[] STYLES={"Anime illustration","Soft anime painting","Detailed lineart","Retro pixel art","Boukoku Daitoryou inspired (approximation)","Custom style card"};
     public static final String[] QUALITY={"Balanced","Anatomy priority","Prompt freedom"};
     /**
      * Clothing/exposure is independent of identity or anatomy.
@@ -56,6 +56,7 @@ public final class PromptBuilder {
         public int age=25;
         public int identity=0,body=1,chest=1,hips=1,genitals=0,expression=0;
         public int penisSize=2,penisState=0,testicles=0,bulge=0;
+        public int length=2,girth=2,testicleSize=0;
         public Character copy(){
             Character x=new Character();
             x.name=name;x.hair=hair;x.eyes=eyes;x.clothing=clothing;x.traits=traits;
@@ -63,6 +64,7 @@ public final class PromptBuilder {
             x.genitals=genitals;x.expression=expression;
             x.penisSize=penisSize;x.penisState=penisState;
             x.testicles=testicles;x.bulge=bulge;
+            x.length=length;x.girth=girth;x.testicleSize=testicleSize;
             return x;
         }
     }
@@ -71,6 +73,8 @@ public final class PromptBuilder {
         public Character character=new Character();
         public int scene=0,style=0,quality=1,contentLevel=0,camera=0;
         public int speedProfile=1;
+        public int faceMode=0,proportionMode=1,complexity=0;
+        public String customStylePositive="",customStyleNegative="";
         public boolean anatomyPriority=true;
         public boolean freeformOnly=false;
         public boolean useSameSeed=false;
@@ -111,6 +115,14 @@ public final class PromptBuilder {
         requireIndex(settings.contentLevel,CONTENT_LEVELS);
         requireIndex(settings.camera,CAMERA);
         requireIndex(settings.speedProfile,SPEED_PROFILES);
+        requireIndex(settings.faceMode,QualityTuning.FACE_MODES);
+        requireIndex(settings.proportionMode,QualityTuning.PROPORTION_MODES);
+        requireIndex(settings.complexity,QualityTuning.COMPLEXITY_MODES);
+        requireIndex(c.length,QualityTuning.LENGTHS);
+        requireIndex(c.girth,QualityTuning.GIRTHS);
+        requireIndex(c.testicleSize,QualityTuning.TESTICLE_SIZES);
+        if(settings.customStylePositive==null || settings.customStyleNegative==null)
+            throw new IllegalArgumentException("Custom style fields must be initialized");
         requireIndex(c.penisSize,PENIS_SIZES);
         requireIndex(c.penisState,PENIS_STATES);
         requireIndex(c.testicles,TESTICLE_OPTIONS);
@@ -123,7 +135,10 @@ public final class PromptBuilder {
         rejectUnderage(c.name);rejectUnderage(c.hair);rejectUnderage(c.eyes);
         rejectUnderage(c.traits);rejectUnderage(c.clothing);
         rejectUnderage(settings.userPrompt);
-        if(settings.userPrompt.length()>12000 || settings.extraNegative.length()>12000)
+        rejectUnderage(settings.customStylePositive);
+        rejectUnderage(settings.customStyleNegative);
+        if(settings.userPrompt.length()>12000 || settings.extraNegative.length()>12000
+            || settings.customStylePositive.length()>4000 || settings.customStyleNegative.length()>4000)
             throw new IllegalArgumentException("Prompt exceeds 12,000 characters");
 
         int width=512,height=512,steps=30;
@@ -149,7 +164,10 @@ public final class PromptBuilder {
         final boolean twoAdults = settings.scene == 6 || settings.camera == 4;
         StringBuilder prompt=new StringBuilder();
         if(!settings.freeformOnly){
-            append(prompt,"masterpiece, best quality, detailed anime illustration");
+            // Put high-value character, scene and anatomy instructions FIRST:
+            // current Local Dream SD1.5 native inference truncates at 75 usable
+            // CLIP tokens; our UI separately reports and plans overflow.
+            append(prompt,"adult, anime illustration");
             if(twoAdults)append(prompt,"2 adults, adult couple, consensual interaction");
             else if(c.identity==5)append(prompt,"1boy, solo, adult");
             else append(prompt,"1girl, solo, adult");
@@ -163,9 +181,17 @@ public final class PromptBuilder {
                 case 5:append(prompt,"adult feminine man, femboy");break;
                 case 6:append(prompt,"adult androgynous character");break;
             }
+            append(prompt,QualityTuning.facePositive(settings.faceMode,
+                settings.scene<=1 || settings.camera==1,repair));
+            append(prompt,QualityTuning.proportionPositive(settings.proportionMode));
             append(prompt,bodyTags(c));
             if (hasVisiblePenis(c)) {
-                if(nude) append(prompt,penisSizePositive(c.penisSize));
+                if(nude){
+                    // New dimensional controls override the old one-size
+                    // prompt to prevent contradiction (small vs thick etc).
+                    append(prompt,QualityTuning.anatomyPositive(
+                        c.length,c.girth,c.testicleSize,true));
+                }
                 if(nude && c.penisState==1)append(prompt,"flaccid penis");
                 if(nude && c.penisState==2)append(prompt,"semi-erect penis");
                 if(nude && c.penisState==3)append(prompt,"erect penis");
@@ -175,6 +201,7 @@ public final class PromptBuilder {
                 if(!nude && c.bulge==2)append(prompt,"noticeable clothing bulge");
             }
             append(prompt,expressionTags(c.expression));
+            append(prompt,QualityTuning.complexityPositive(settings.complexity));
             // Exposure controls must not be contradicted by saved outfit
             // descriptions. Otherwise the model typically draws clothing.
             if(nude) {
@@ -199,7 +226,9 @@ public final class PromptBuilder {
             if(settings.style==1)append(prompt,"soft painterly anime rendering, subtle shading");
             if(settings.style==2)append(prompt,"clean crisp lineart, high detail, cel shading");
             if(settings.style==3 || settings.scene==7)append(prompt,"pixel art aesthetic, retro game style, pixelated outline, limited color palette");
-            if(settings.quality!=2)append(prompt,"good anatomy, balanced body proportions, detailed eyes");
+            if(settings.style==4)append(prompt,QualityTuning.boukokuApproximation());
+            if(settings.style==5)append(prompt,settings.customStylePositive);
+            if(settings.quality!=2)append(prompt,"balanced body proportions, consistent eyes");
             if(repair)append(prompt,"clean anatomy, consistent body structure, clear limbs, detailed face, precise linework");
         }
         append(prompt,settings.userPrompt);
@@ -215,7 +244,15 @@ public final class PromptBuilder {
         // Do not use male/female/penis as general negative tokens because
         // doing so conflicts with trans/futanari anatomy configurations.
         if(hasVisiblePenis(c) && !settings.freeformOnly && c.penisSize<=2) {
-            append(negative,"huge penis, giant penis, oversized penis, monster proportions, unnaturally enormous genitals");
+            append(negative,"giant penis, extremely oversized genitals");
+        }
+        if(!settings.freeformOnly){
+            append(negative,QualityTuning.faceNegative(settings.faceMode));
+            append(negative,QualityTuning.proportionNegative(settings.proportionMode));
+            if(hasVisiblePenis(c) && nude)append(negative,
+                QualityTuning.anatomyNegative(c.length,c.girth,c.testicleSize,true));
+            if(settings.style==4)append(negative,QualityTuning.defaultStyleNegative());
+            if(settings.style==5)append(negative,settings.customStyleNegative);
         }
         append(negative,settings.extraNegative);
         if(settings.quality==2)cfg=7.0f;
@@ -238,7 +275,10 @@ public final class PromptBuilder {
         String explanation=(preview?"4-preview batch (set batch=4 in generator). "
                          :repair?"Refine: use img2img/inpaint when repairing details. "
                          :"Normal generation. ")
-                         +"Suggested "+width+"×"+height+" resolution; select it MANUALLY in Local Dream.";
+                         +"Suggested "+width+"×"+height+" resolution; select it MANUALLY in Local Dream."
+                         +" Current native SD1.5 conditioning reads 75 useful CLIP tokens per pass;"
+                         +" open Long Prompt Planner for multi-pass img2img overflow.";
+
         return new Recipe(prompt.toString(),negative.toString(),width,height,steps,cfg,
             "euler_a",seed,explanation);
     }
