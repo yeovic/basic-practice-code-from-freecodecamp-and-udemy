@@ -55,6 +55,39 @@ public final class PromptBuilderTest {
               "Body config not respected");
         s.seed="137";r=PromptBuilder.build(s,false,false);
         check(r.seed==137,"Seed lock failed");
+        // Regression for v2.3: adult scenes were not explicitly nude.
+        for(int type=0;type<PromptBuilder.IDENTITIES.length;type++){
+            PromptBuilder.Settings nudity=new PromptBuilder.Settings();
+            nudity.character.identity=type;
+            nudity.character.clothing="black dress, high collar";
+            nudity.contentLevel=1;
+            PromptBuilder.Recipe nude=PromptBuilder.build(nudity,false,false);
+            check(nude.positive.contains("(nude:1.35)"),"Nude tag absent for identity "+type);
+            check(!nude.positive.contains("black dress"),"Saved outfit overrides nude mode");
+            check(nude.negative.contains("fully clothed"),"Missing clothing exclusion in nude mode");
+            check(!nude.negative.contains("male,"),"Negative prompt conflicts with gender identity");
+            nudity.contentLevel=2;
+            nudity.scene=6;
+            PromptBuilder.Recipe adultScene=PromptBuilder.build(nudity,false,false);
+            check(adultScene.positive.contains("consensual adult sex scene"),"Adult sexual scene not explicit");
+            check(adultScene.positive.contains("2 adults"),"Two-person scene missing");
+            check(!adultScene.positive.contains("solo"),"Two-person scene contradictory solo tag");
+            nudity.contentLevel=0;
+            PromptBuilder.Recipe dressed=PromptBuilder.build(nudity,false,false);
+            check(dressed.positive.contains("black dress"),"Clothed mode lost outfit");
+            check(!dressed.positive.contains("(nude:1.35)"),"Clothed mode unexpectedly nude");
+            check(!dressed.negative.contains("fully clothed"),"Clothed mode contradicted by negatives");
+        }
+        PromptBuilder.Settings cameraScene=new PromptBuilder.Settings();
+        cameraScene.camera=4;
+        cameraScene.contentLevel=2;
+        PromptBuilder.Recipe coupleCamera=PromptBuilder.build(cameraScene,false,false);
+        check(!coupleCamera.positive.contains("1girl, solo"),"Couple camera contradicts character count");
+        PromptBuilder.Settings free=new PromptBuilder.Settings();
+        free.freeformOnly=true;free.contentLevel=2;free.userPrompt="adult woman, custom scene";
+        PromptBuilder.Recipe untouched=PromptBuilder.build(free,false,false);
+        check(untouched.positive.equals("adult woman, custom scene"),"Freeform-only no longer freeform");
+        System.out.println("PASS: v2.4 explicit adult-content mode tags, no clothing conflict, character body matrix");
         System.out.println("PASS: scene x body preset combinations, freeform, negatives, seeds, repair, adults-only");
     }
 }
