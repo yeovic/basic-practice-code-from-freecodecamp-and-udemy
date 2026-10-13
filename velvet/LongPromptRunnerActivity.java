@@ -143,11 +143,11 @@ public final class LongPromptRunnerActivity extends Activity {
                         i==0?seed:-1,current,passIndex,count);
                     if(current!=null && current!=next)current.recycle();
                     current=next;
-                    final Bitmap shown=current;
-                    handler.post(()->{
-                        if(!dead){preview.setImageBitmap(shown);
-                            status.setText("Completed pass "+(passIndex+1)+"/"+count);}
-                    });
+                    // Only display the final result: showing a temporary
+                    // bitmap while recycling it on the next pass can cause
+                    // "Canvas: trying to use a recycled bitmap" on Android.
+                    ui("Completed pass "+(passIndex+1)+"/"+count
+                        +"; retaining just the current working image.");
                 }
                 final Bitmap output=current;
                 handler.post(()->{
