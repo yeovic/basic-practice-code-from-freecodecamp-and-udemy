@@ -20,13 +20,18 @@ public final class ModelStorage {
     private ModelStorage() {}
 
     public static File modelsDir(Context context) {
-        File internal = new File(context.getFilesDir(), "models");
+        return ensure(new File(preferredBaseDir(context), "models"));
+    }
+
+    /** Parent path used by Local Dream before its original /models suffix. */
+    public static File preferredBaseDir(Context context) {
+        File internal = context.getFilesDir();
         File[] roots;
         try {
             roots = context.getExternalFilesDirs(null);
         } catch (RuntimeException ex) {
             Log.w(TAG, "Cannot enumerate external file locations", ex);
-            return ensure(internal);
+            return internal;
         }
         if (roots != null) {
             for (int i = 1; i < roots.length; i++) {
@@ -39,7 +44,7 @@ public final class ModelStorage {
                     File candidate = new File(root, "models");
                     if (candidate.exists() && candidate.isDirectory() && candidate.canWrite()) {
                         Log.i(TAG, "Using existing model folder on removable SD card");
-                        return candidate;
+                        return root;
                     }
                     long available = new StatFs(root.getAbsolutePath()).getAvailableBytes();
                     if (available < REQUIRED_BYTES) {
@@ -56,7 +61,7 @@ public final class ModelStorage {
             }
         }
         Log.i(TAG, "Using internal app storage for models (no writable microSD found)");
-        return ensure(internal);
+        return internal;
     }
 
     private static File ensure(File directory) {
