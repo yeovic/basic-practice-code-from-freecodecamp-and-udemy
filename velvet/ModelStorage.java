@@ -37,7 +37,7 @@ public final class ModelStorage {
         String mode=getMode(c)==MODE_SPEED?"Speed: internal storage"
             :getMode(c)==MODE_SPACE?"Space: removable microSD if available"
             :"Automatic: removable microSD if available";
-        return mode+"\\nActive folder: "+modelsDir(c).getAbsolutePath();
+        return mode+"\nActive folder: "+modelsDir(c).getAbsolutePath();
     }
 
     public static File modelsDir(Context context) {
