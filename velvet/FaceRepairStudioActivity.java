@@ -105,7 +105,7 @@ public final class FaceRepairStudioActivity extends Activity {
         label(body,"Start near 0.30. Higher strength may change identity, expression or style.",12);
         gpu=new CheckBox(this);gpu.setText("Experimental OpenCL GPU (disable if unstable)");
         gpu.setTextColor(0xffe4d2f0);gpu.setChecked(false);body.addView(gpu);
-        generateButton=button(body,"Repair selected face locally",this::startRepair);
+        generateButton=button(body,"Repair selected region locally",this::startRepair);
         button(body,"Cancel current operation",()->{
             cancel.set(true);HttpURLConnection c=active;if(c!=null)c.disconnect();
         });
@@ -238,8 +238,11 @@ public final class FaceRepairStudioActivity extends Activity {
                 message("Preparing face crop for local diffusion...");
                 crop=Bitmap.createBitmap(input,r.left,r.top,r.size,r.size);
                 source=Bitmap.createScaledBitmap(crop,512,512,true);
+                long warmStart=System.nanoTime();
                 startBackend();
                 if(!waitForModel())throw new IOException("Local Dream backend not ready");
+                LocalPerformanceLog.record(this,"repair_backend_ready",0,512,512,
+                    (System.nanoTime()-warmStart)/1_000_000L,-1,useGpu);
                 message("Refining selected face with Meina SD1.5...");
                 enhanced=redraw(source,denoise,useGpu,target,sizePreference);
                 if(cancel.get())throw new IOException("Repair cancelled");
@@ -335,6 +338,7 @@ public final class FaceRepairStudioActivity extends Activity {
         req.put("scheduler","euler_a");
         req.put("output_format","png");
         req.put("show_diffusion_process",false);
+        long renderStart=System.nanoTime();
         HttpURLConnection connection=(HttpURLConnection)new URL(HOST+"/generate").openConnection();
         connection.setRequestMethod("POST");connection.setDoOutput(true);
         connection.setRequestProperty("Content-Type","application/json");
@@ -360,6 +364,12 @@ public final class FaceRepairStudioActivity extends Activity {
                     else if("error".equals(type))
                         throw new IOException(event.optString("message","Model error"));
                     else if("complete".equals(type)){
+                        long wall=(System.nanoTime()-renderStart)/1_000_000L;
+                        long nativeMs=event.optLong("generation_time_ms",-1L);
+                        LocalPerformanceLog.record(this,"repair_"+target,
+                            22,512,512,wall,nativeMs,useGpu);
+                        message("Diffusion completed: "+wall+" ms"
+                            +(nativeMs>=0?" (native "+nativeMs+" ms)":""));
                         byte[] png=Base64.decode(event.getString("image"),Base64.DEFAULT);
                         Bitmap out=BitmapFactory.decodeByteArray(png,0,png.length);
                         if(out==null||out.getWidth()!=512||out.getHeight()!=512)
