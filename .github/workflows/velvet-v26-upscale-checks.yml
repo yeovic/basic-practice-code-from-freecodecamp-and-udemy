@@ -1,4 +1,4 @@
-name: Velvet v3.3 Memory and Conditioning QA
+name: Velvet v3.3 Generation Benchmarks QA
 on:
   push:
     branches: [velvet-atelier-apk]
@@ -20,6 +20,7 @@ on:
       - 'velvet/GenerationPassPolicy.java'
       - 'velvet/GenerationPassPolicyTest.java'
       - 'velvet/RegionSelectionView.java'
+      - 'velvet/LocalPerformanceLog.java'
       - 'velvet/IncludedModelProvider.java'
       - 'velvet/ModelDiagnostics.java'
       - 'velvet/ModelArtifactVerifier.java'
@@ -62,7 +63,7 @@ jobs:
             velvet/LongPromptRunnerActivity.java \
             velvet/FaceRepairStudioActivity.java velvet/FacePatchEngine.java \
             velvet/RegionSelectionView.java velvet/RepairPromptTemplates.java \
-            velvet/GenerationPassPolicy.java \
+            velvet/GenerationPassPolicy.java velvet/LocalPerformanceLog.java \
             velvet/ImageResampler.java velvet/ImageUpscaleActivity.java \
             velvet/ModelDiagnostics.java velvet/ModelArtifactVerifier.java
-          echo 'PASS: v3.3 repaired UI, face cropping, long-prompt policies and Android source'
+          echo 'PASS: v3.3 memory-aware repair, prompt flow, local telemetry and Android API compile'
