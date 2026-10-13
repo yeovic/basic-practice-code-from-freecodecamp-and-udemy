@@ -22,6 +22,15 @@ jobs:
           mkdir -p build/tests
           javac -d build/tests velvet/GifWriter.java velvet/GifWriterTest.java
           java -Djava.awt.headless=true -cp build/tests org.velvetatelier.GifWriterTest
+      - name: Preflight compile Android UI and model installer
+        run: |
+          mkdir -p build/preflight
+          PLATFORM="$ANDROID_HOME/platforms/android-35/android.jar"
+          javac -source 8 -target 8 -cp "$PLATFORM" -d build/preflight \
+            velvet/ModelStorage.java velvet/IncludedModelProvider.java \
+            velvet/PixelStudioActivity.java velvet/VelvetHubActivity.java \
+            velvet/PixelEngine.java velvet/GifWriter.java
+          echo "Android Java source preflight succeeded."
       - name: Download independently verified adult anime SD1.5 checkpoint
         run: |
           mkdir -p build dist
