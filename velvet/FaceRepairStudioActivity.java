@@ -252,14 +252,17 @@ public final class FaceRepairStudioActivity extends Activity {
                 if(cancel.get())throw new IOException("Repair cancelled");
                 Bitmap scaled=Bitmap.createScaledBitmap(enhanced,r.size,r.size,true);
                 int w=input.getWidth(),h=input.getHeight();
-                int[] sourcePixels=new int[w*h];
-                input.getPixels(sourcePixels,0,w,0,0,w,h);
-                int[] patchPixels=new int[r.size*r.size];
-                scaled.getPixels(patchPixels,0,r.size,0,0,r.size,r.size);
-                int[] blended=FacePatchEngine.composite(sourcePixels,w,h,patchPixels,r,
-                    Math.max(3,r.size/7),.92f);
-                newResult=Bitmap.createBitmap(w,h,Bitmap.Config.ARGB_8888);
-                newResult.setPixels(blended,0,w,0,0,w,h);
+                // Keep only crop-sized arrays on the Java heap. Previously
+                // this copied two whole 3MP buffers plus the Bitmap.
+                int[] originalPatch=new int[r.size*r.size];
+                input.getPixels(originalPatch,0,r.size,r.left,r.top,r.size,r.size);
+                int[] generatedPatch=new int[r.size*r.size];
+                scaled.getPixels(generatedPatch,0,r.size,0,0,r.size,r.size);
+                int[] blended=FacePatchEngine.compositePatch(
+                    originalPatch,generatedPatch,r.size,Math.max(3,r.size/7),.92f);
+                newResult=input.copy(Bitmap.Config.ARGB_8888,true);
+                if(newResult==null)throw new IOException("Cannot allocate result bitmap");
+                newResult.setPixels(blended,0,r.size,r.left,r.top,r.size,r.size);
                 scaled.recycle();
                 final Bitmap done=newResult;
                 main.post(()->{
