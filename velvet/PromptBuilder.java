@@ -181,9 +181,17 @@ public final class PromptBuilder {
                 case 5:append(prompt,"adult feminine man, femboy");break;
                 case 6:append(prompt,"adult androgynous character");break;
             }
+            // Model-first ordering: facial structure and the user's primary
+            // scene request must fit inside the native 75-content-token CLIP
+            // window. Decorative tags may run in later img2img passes.
             append(prompt,QualityTuning.facePositive(settings.faceMode,
                 settings.scene<=1 || settings.camera==1,repair));
             append(prompt,QualityTuning.proportionPositive(settings.proportionMode));
+            if(nude)append(prompt,"(nude:1.3), unclothed, adult anatomy");
+            if(intimate){
+                append(prompt,twoAdults?"consensual adult intimacy, adult couple":"adult solo intimate scene");
+            }
+            append(prompt,settings.userPrompt);
             append(prompt,bodyTags(c));
             if (hasVisiblePenis(c)) {
                 if(nude){
@@ -220,10 +228,6 @@ public final class PromptBuilder {
                     append(prompt,"explicit adult solo scene, sexual context, clear adult anatomy");
                 }
             }
-            // User's scene instruction is more important than optional
-            // cosmetic tags. Position it early enough for the native
-            // 75-content-token SD1.5 CLIP window.
-            append(prompt,settings.userPrompt);
             if(settings.camera==1)framing="face focus, portrait";
             if(settings.camera==2)framing="waist up, upper body";
             if(settings.camera==3)framing="full figure in frame, clearly visible anatomy";
@@ -244,8 +248,18 @@ public final class PromptBuilder {
         if(settings.freeformOnly)append(prompt,settings.userPrompt);
         if(prompt.length()==0)throw new IllegalArgumentException("Enter a prompt");
 
-        StringBuilder negative=new StringBuilder(BASE_NEGATIVE);
-        if(settings.anatomyPriority || settings.quality==1 || repair)append(negative,EXTRA_NEGATIVE);
+        // Face and requested size/proportions are more consequential than
+        // generic quality exclusions. Put them FIRST, before CLIP truncation.
+        StringBuilder negative=new StringBuilder();
+        if(!settings.freeformOnly){
+            append(negative,QualityTuning.faceNegative(settings.faceMode));
+            append(negative,QualityTuning.proportionNegative(settings.proportionMode));
+            if(hasVisiblePenis(c) && nude){
+                int len=(c.length==2 && c.girth==2 && c.penisSize!=2)?c.penisSize:c.length;
+                int gir=(c.length==2 && c.girth==2 && c.penisSize!=2)?c.penisSize:c.girth;
+                append(negative,QualityTuning.anatomyNegative(len,gir,c.testicleSize,true));
+            }
+        }
         if(nude && !settings.freeformOnly) {
             // Relevant only to explicitly selected nudity. Never apply
             // clothing negatives to ordinary portrait/fully dressed presets.
@@ -262,16 +276,13 @@ public final class PromptBuilder {
                 append(negative,"huge penis, oversized penis, giant penis, extremely oversized genitals");
         }
         if(!settings.freeformOnly){
-            append(negative,QualityTuning.faceNegative(settings.faceMode));
-            append(negative,QualityTuning.proportionNegative(settings.proportionMode));
-            if(hasVisiblePenis(c) && nude){
-                int len=(c.length==2 && c.girth==2 && c.penisSize!=2)?c.penisSize:c.length;
-                int gir=(c.length==2 && c.girth==2 && c.penisSize!=2)?c.penisSize:c.girth;
-                append(negative,QualityTuning.anatomyNegative(len,gir,c.testicleSize,true));
-            }
             if(settings.style==4)append(negative,QualityTuning.defaultStyleNegative());
             if(settings.style==5)append(negative,settings.customStyleNegative);
         }
+        // Generic negatives are still included for native extended / img2img
+        // passes, but no longer crowd out structural anatomy/face guidance.
+        append(negative,BASE_NEGATIVE);
+        if(settings.anatomyPriority || settings.quality==1 || repair)append(negative,EXTRA_NEGATIVE);
         append(negative,settings.extraNegative);
         if(settings.quality==2)cfg=7.0f;
         if(twoAdults)cfg=Math.min(cfg,6.3f);
