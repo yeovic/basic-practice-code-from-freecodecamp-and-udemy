@@ -23,7 +23,8 @@ public final class IncludedModelProvider extends ContentProvider {
     private static final String MODEL_SHA256 = "deb40a068adf41aa2466dc8e76b516216af1c1afe721dfd23fc2c1108b4d152f";
     private static final String CHANNEL = "velvet_model_install";
     private static final int NOTIFICATION_ID = 7101;
-    private static boolean started = false;
+    private static volatile boolean started = false;
+    public static boolean isBusy(){return started;}
 
     private static volatile String status = "Checking included model";
     private static volatile String lastError = "";
@@ -34,6 +35,9 @@ public final class IncludedModelProvider extends ContentProvider {
         File finished=new File(dir,"finished");
         if(finished.isFile())return "READY — MeinaHentai v2.1 installed in "+dir.getAbsolutePath();
         String state=status;
+        if(state.startsWith("READY")) {
+            state="NOT READY in the selected storage. Tap Retry / Continue Model Setup.";
+        }
         String diagnostic=readLastError(c);
         if (!diagnostic.isEmpty()) state+="\\nLast error: "+diagnostic;
         return state+"\\nTarget folder: "+dir.getAbsolutePath();
