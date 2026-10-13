@@ -118,6 +118,19 @@ public final class VelvetHubActivity extends Activity {
                         "Velvet Atelier Diagnostics",report));
                 }).show();
         });
+        action(body,"Measured local generation performance",()->{
+            final String report=LocalPerformanceLog.report(this);
+            new android.app.AlertDialog.Builder(this)
+                .setTitle("Local image-generation benchmarks")
+                .setMessage(report)
+                .setNegativeButton("Close",null)
+                .setPositiveButton("Copy CSV",(d,which)->{
+                    android.content.ClipboardManager clipboard=
+                        (android.content.ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
+                    clipboard.setPrimaryClip(android.content.ClipData.newPlainText(
+                        "Velvet local performance",report));
+                }).show();
+        });
         subtitle(body,"Original inference engine: Local Dream by xororz and contributors (CC BY-NC 4.0). Bundled checkpoint: MeinaHentai v2.1 (Open RAIL-M). This is a noncommercial fork.");
         setContentView(scroll);
     }
