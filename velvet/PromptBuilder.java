@@ -249,8 +249,13 @@ public final class PromptBuilder {
         }
         // Do not use male/female/penis as general negative tokens because
         // doing so conflicts with trans/futanari anatomy configurations.
-        if(hasVisiblePenis(c) && !settings.freeformOnly && c.penisSize<=2) {
-            append(negative,"giant penis, extremely oversized genitals");
+        if(hasVisiblePenis(c) && !settings.freeformOnly) {
+            int length=(c.length==2 && c.girth==2 && c.penisSize!=2)
+                ? c.penisSize : c.length;
+            int girth=(c.length==2 && c.girth==2 && c.penisSize!=2)
+                ? c.penisSize : c.girth;
+            if(length<=2 && girth<=2)
+                append(negative,"huge penis, oversized penis, giant penis, extremely oversized genitals");
         }
         if(!settings.freeformOnly){
             append(negative,QualityTuning.faceNegative(settings.faceMode));
