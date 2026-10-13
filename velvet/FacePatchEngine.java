@@ -50,6 +50,35 @@ public final class FacePatchEngine {
         }
         return output;
     }
+    /**
+     * Low-memory compositing for Android Bitmap.setPixels. Returns ONLY the
+     * cropped result pixels instead of cloning a multi-megapixel full image.
+     * Peak pixel-array size changes from O(image width*height) to O(crop²).
+     */
+    public static int[] compositePatch(int[] originalPatch,int[] generatedPatch,
+                                       int side,int featherPx,float strength){
+        if(side<2 || originalPatch==null || generatedPatch==null
+            || (long)side*side!=originalPatch.length
+            || (long)side*side!=generatedPatch.length
+            || Float.isNaN(strength))
+            throw new IllegalArgumentException("Bad cropped patch");
+        int[] merged=new int[originalPatch.length];
+        int feather=Math.max(1,Math.min(side/2,featherPx));
+        float mix=Math.max(0,Math.min(1,strength));
+        for(int y=0;y<side;y++){
+            for(int x=0;x<side;x++){
+                int index=y*side+x;
+                int border=Math.min(Math.min(x,side-1-x),Math.min(y,side-1-y));
+                float t=Math.min(1f,Math.max(0f,border/(float)feather));
+                float smooth=t*t*(3f-2f*t);
+                float alpha=mix*smooth;
+                merged[index]=alpha<=0f?originalPatch[index]:
+                    mixColor(originalPatch[index],generatedPatch[index],alpha);
+            }
+        }
+        return merged;
+    }
+
     private static int mixColor(int a,int b,float w){
         float ow=1-w;
         int aa=Math.round(((a>>>24)&255)*ow+((b>>>24)&255)*w);
