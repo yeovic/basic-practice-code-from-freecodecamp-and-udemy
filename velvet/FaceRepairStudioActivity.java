@@ -50,8 +50,8 @@ public final class FaceRepairStudioActivity extends Activity {
     private final AtomicBoolean cancel=new AtomicBoolean();
     private volatile HttpURLConnection active;
     private volatile boolean busy=false,disposed=false;
-    private Bitmap input,result,outline;
-    private ImageView preview;
+    private Bitmap input,result;
+    private RegionSelectionView preview;
     private TextView status;
     private SeekBar sizeSeek,denoiseSeek;
     private CheckBox gpu;
@@ -72,7 +72,7 @@ public final class FaceRepairStudioActivity extends Activity {
             +"The original Meina model redraws only a cropped face at 512px resolution "
             +"and blends it back into the original image. All work remains offline.",13);
         button(body,"Choose saved image",()->selectImage());
-        preview=new ImageView(this);
+        preview=new RegionSelectionView(this);
         preview.setScaleType(ImageView.ScaleType.FIT_CENTER);
         preview.setBackgroundColor(0xff292431);
         body.addView(preview,new LinearLayout.LayoutParams(-1,580));
@@ -193,8 +193,9 @@ public final class FaceRepairStudioActivity extends Activity {
                 main.post(()->{
                     if(disposed){decoded.recycle();return;}
                     preview.setImageBitmap(null);
-                    if(outline!=null){outline.recycle();outline=null;}
-                    if(result!=null){result.recycle();result=null;}
+                    preview.setSelectionRegion(null);
+                    if(result!=null && result!=input){result.recycle();}
+                    result=null;
                     if(input!=null)input.recycle();
                     input=decoded;x=.5f;y=.28f;
                     saveButton.setEnabled(false);
@@ -214,17 +215,9 @@ public final class FaceRepairStudioActivity extends Activity {
     private void updateOutline(){
         if(input==null||disposed)return;
         FacePatchEngine.Region r=selectedRegion();
-        if(outline!=null){
-            preview.setImageBitmap(null);
-            outline.recycle();
-        }
-        outline=input.copy(Bitmap.Config.ARGB_8888,true);
-        Canvas cv=new Canvas(outline);
-        Paint p=new Paint(Paint.ANTI_ALIAS_FLAG);p.setColor(Color.CYAN);
-        p.setStrokeWidth(3);p.setStyle(Paint.Style.STROKE);
-        cv.drawRect(new Rect(r.left,r.top,r.left+r.size,r.top+r.size),p);
-        preview.setImageBitmap(outline);
-        status.setText("Selection: "+r.toString()+" — tap the face to reposition");
+        preview.setImageBitmap(input);
+        preview.setSelectionRegion(r);
+        status.setText("Selection: "+r.toString()+" — tap the region to reposition");
     }
     private void startRepair(){
         if(input==null||busy)return;
@@ -267,10 +260,17 @@ public final class FaceRepairStudioActivity extends Activity {
                 final Bitmap done=newResult;
                 main.post(()->{
                     if(disposed){done.recycle();return;}
-                    if(outline!=null){preview.setImageBitmap(null);outline.recycle();outline=null;}
-                    if(result!=null && result!=done)result.recycle();
-                    result=done;preview.setImageBitmap(done);
-                    status.setText("Localized model-based face repair complete. Export PNG.");
+                    // Chain successive repairs on the most recent image,
+                    // rather than discarding prior repaired faces or hands.
+                    Bitmap prior=input;
+                    if(result!=null && result!=prior && result!=done)
+                        result.recycle();
+                    input=done;
+                    result=done;
+                    preview.setImageBitmap(done);
+                    preview.setSelectionRegion(null);
+                    if(prior!=null && prior!=done)prior.recycle();
+                    status.setText("Localized repair complete; next repair starts from this result. Export PNG.");
                     saveButton.setEnabled(true);
                 });
             }catch(Throwable ex){
