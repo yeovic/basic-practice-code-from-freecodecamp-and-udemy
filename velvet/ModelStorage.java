@@ -17,7 +17,28 @@ import java.io.File;
 public final class ModelStorage {
     private static final String TAG = "VelvetModelStorage";
     private static final long REQUIRED_BYTES = 6L * 1024 * 1024 * 1024;
+    private static final String PREF_FILE="velvet_storage_prefs";
+    private static final String PREF_MODE="model_location_mode";
+    public static final int MODE_AUTO=0;
+    public static final int MODE_SPEED=1;
+    public static final int MODE_SPACE=2;
     private ModelStorage() {}
+
+    public static int getMode(Context context){
+        int value=context.getSharedPreferences(PREF_FILE,Context.MODE_PRIVATE).getInt(PREF_MODE,MODE_AUTO);
+        return value>=0&&value<=2?value:MODE_AUTO;
+    }
+    public static void setMode(Context context,int mode){
+        if(mode<0||mode>2)throw new IllegalArgumentException("Invalid storage mode");
+        context.getSharedPreferences(PREF_FILE,Context.MODE_PRIVATE)
+            .edit().putInt(PREF_MODE,mode).apply();
+    }
+    public static String describeMode(Context c){
+        String mode=getMode(c)==MODE_SPEED?"Speed: internal storage"
+            :getMode(c)==MODE_SPACE?"Space: removable microSD if available"
+            :"Automatic: removable microSD if available";
+        return mode+"\\nActive folder: "+modelsDir(c).getAbsolutePath();
+    }
 
     public static File modelsDir(Context context) {
         return ensure(new File(preferredBaseDir(context), "models"));
@@ -26,6 +47,10 @@ public final class ModelStorage {
     /** Parent path used by Local Dream before its original /models suffix. */
     public static File preferredBaseDir(Context context) {
         File internal = context.getFilesDir();
+        if(getMode(context)==MODE_SPEED){
+            Log.i(TAG,"Prefer faster internal storage for model loading");
+            return internal;
+        }
         File[] roots;
         try {
             roots = context.getExternalFilesDirs(null);
