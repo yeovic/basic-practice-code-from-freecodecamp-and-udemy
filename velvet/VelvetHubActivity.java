@@ -59,7 +59,7 @@ public final class VelvetHubActivity extends Activity {
         divider(body);
         title(body,"Storage",18,true);
         String path=ModelStorage.modelsDir(this).getAbsolutePath();
-        subtitle(body,"Current AI model folder:\\n"+path+"\\nChoose internal for potentially faster model loading or microSD to save internal space. Android controls the APK installation location.");
+        subtitle(body,"Current AI model folder:\n"+path+"\nChoose internal for potentially faster model loading or microSD to save internal space. Android controls the APK installation location.");
         action(body,"Storage: prefer speed / save space",()->{
             if(IncludedModelProvider.isBusy()){
                 new android.app.AlertDialog.Builder(this)
