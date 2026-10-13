@@ -24,6 +24,8 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.SeekBar;
+import android.widget.Spinner;
+import android.widget.ArrayAdapter;
 import android.widget.TextView;
 import org.json.JSONObject;
 import java.io.*;
@@ -53,6 +55,7 @@ public final class FaceRepairStudioActivity extends Activity {
     private TextView status;
     private SeekBar sizeSeek,denoiseSeek;
     private CheckBox gpu;
+    private Spinner repairTarget,anatomySize;
     private Button generateButton,saveButton;
     private float x=.5f,y=.28f;
 
@@ -84,7 +87,17 @@ public final class FaceRepairStudioActivity extends Activity {
             updateOutline();return true;
         });
         status=label(body,"Choose a saved image, then tap its face.",13);
-        label(body,"Crop coverage (larger for small faces)",13);
+        label(body,"Repair region",13);
+        repairTarget=new Spinner(this);
+        repairTarget.setAdapter(new ArrayAdapter<>(this,
+            android.R.layout.simple_spinner_dropdown_item,RepairPromptTemplates.TARGETS));
+        body.addView(repairTarget);
+        label(body,"Anatomy size preference (applies to Anatomy region only)",13);
+        anatomySize=new Spinner(this);
+        anatomySize.setAdapter(new ArrayAdapter<>(this,
+            android.R.layout.simple_spinner_dropdown_item,RepairPromptTemplates.ANATOMY_SIZES));
+        body.addView(anatomySize);
+        label(body,"Crop coverage (larger for smaller details)",13);
         sizeSeek=new SeekBar(this);sizeSeek.setMax(52);sizeSeek.setProgress(23);body.addView(sizeSeek);
         sizeSeek.setOnSeekBarChangeListener(seekListener(()->updateOutline()));
         label(body,"Face repair strength / denoising",13);
@@ -222,6 +235,8 @@ public final class FaceRepairStudioActivity extends Activity {
         final FacePatchEngine.Region r=selectedRegion();
         final boolean useGpu=gpu.isChecked();
         final float denoise=.16f+denoiseSeek.getProgress()*.01f;
+        final int target=repairTarget.getSelectedItemPosition();
+        final int sizePreference=anatomySize.getSelectedItemPosition();
         busy=true;cancel.set(false);
         generateButton.setEnabled(false);saveButton.setEnabled(false);
         worker.execute(()->{
@@ -233,7 +248,7 @@ public final class FaceRepairStudioActivity extends Activity {
                 startBackend();
                 if(!waitForModel())throw new IOException("Local Dream backend not ready");
                 message("Refining selected face with Meina SD1.5...");
-                enhanced=redraw(source,denoise,useGpu);
+                enhanced=redraw(source,denoise,useGpu,target,sizePreference);
                 if(cancel.get())throw new IOException("Repair cancelled");
                 Bitmap scaled=Bitmap.createScaledBitmap(enhanced,r.size,r.size,true);
                 int w=input.getWidth(),h=input.getHeight();
@@ -262,7 +277,9 @@ public final class FaceRepairStudioActivity extends Activity {
                 if(crop!=null)crop.recycle();
                 if(source!=null && source!=crop)source.recycle();
                 if(enhanced!=null)enhanced.recycle();
-                stopBackend();
+                // Keep the native backend alive across repeated repairs while
+                // this Activity is open, avoiding repeated MNN model loads.
+                // onDestroy() tears it down when leaving this studio.
                 busy=false;main.post(()->{
                     if(!disposed)generateButton.setEnabled(true);
                 });
@@ -299,17 +316,14 @@ public final class FaceRepairStudioActivity extends Activity {
         }
         return false;
     }
-    private Bitmap redraw(Bitmap face,float denoise,boolean useGpu)throws Exception{
+    private Bitmap redraw(Bitmap face,float denoise,boolean useGpu,
+                          int target,int sizePreference)throws Exception{
         ByteArrayOutputStream bytes=new ByteArrayOutputStream(300000);
         if(!face.compress(Bitmap.CompressFormat.PNG,100,bytes))
             throw new IOException("Cannot encode face crop");
         JSONObject req=new JSONObject();
-        req.put("prompt","adult anime face, same identity, same hair color, same art style, "
-            +"(well drawn symmetric eyes:1.2), aligned pupils, coherent facial structure, "
-            +"well drawn mouth, clean jawline, fine facial details");
-        req.put("negative_prompt","distorted face, malformed eyes, uneven pupils, extra eyes, "
-            +"cross eyes, melted facial features, warped lips, badly drawn mouth, "
-            +"extra mouth, asymmetrical face");
+        req.put("prompt",RepairPromptTemplates.positive(target,sizePreference));
+        req.put("negative_prompt",RepairPromptTemplates.negative(target,sizePreference));
         req.put("image",Base64.encodeToString(bytes.toByteArray(),Base64.NO_WRAP));
         req.put("steps",22);req.put("cfg",5.5);
         req.put("width",512);req.put("height",512);
@@ -358,6 +372,7 @@ public final class FaceRepairStudioActivity extends Activity {
         disposed=true;cancel.set(true);
         HttpURLConnection c=active;if(c!=null)c.disconnect();
         worker.shutdownNow();
+        stopBackend();
         super.onDestroy();
     }
 }
