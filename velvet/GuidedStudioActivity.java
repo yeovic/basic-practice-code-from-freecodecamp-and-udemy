@@ -48,6 +48,10 @@ public final class GuidedStudioActivity extends Activity {
     private LinearLayout body;
     private Spinner savedProfiles,scene,contentLevel,camera,identity,figure,chest,hips,genitals,expression,style,quality;
     private Spinner penisSize,penisState,testicles,bulge,speedProfile;
+    private Spinner length,girth,testicleSize,faceMode,proportionMode,complexity;
+    private EditText customStylePositive,customStyleNegative,styleCardName;
+    private Spinner savedStyles;
+    private static final String STYLE_CARDS="style_cards";
     private LinearLayout penisControls;
     private EditText name,age,hair,eyes,clothing,traits,userPrompt,customNegative,seed;
     private CheckBox anatomyPriority,freeform;
@@ -85,6 +89,15 @@ public final class GuidedStudioActivity extends Activity {
         camera=choice("Camera / framing",PromptBuilder.CAMERA);
         note("Nude and consensual adult-scene modes add content-specific prompt tags and remove conflicting outfit descriptions. Clothed remains the default.");
         style=choice("Rendering",PromptBuilder.STYLES);
+        savedStyles=choice("Saved custom styles",new String[]{"(No saved style)"});
+        styleCardName=input("Style card name","My style",false);
+        customStylePositive=input("Custom style: positive details","Illustration techniques, palette, shading",true);
+        customStyleNegative=input("Custom style: negative details","Avoid glossy rendering, muddy linework",true);
+        LinearLayout styleActions=row();
+        action(styleActions,"Save style",this::saveStyleCard);
+        action(styleActions,"Load style",this::loadStyleCard);
+        loadStyleOptions();
+        note("Boukoku Daitoryou is an editable unverified approximation, not an authentic style LoRA. Custom style cards can record your exact reference-derived traits.");
         quality=choice("Generation preference",PromptBuilder.QUALITY);
         quality.setSelection(1);
         speedProfile=choice("Render speed / detail",PromptBuilder.SPEED_PROFILES);
@@ -112,6 +125,11 @@ public final class GuidedStudioActivity extends Activity {
         penisState=choiceIn(penisControls,"Penis state",PromptBuilder.PENIS_STATES);
         testicles=choiceIn(penisControls,"Testicles",PromptBuilder.TESTICLE_OPTIONS);
         bulge=choiceIn(penisControls,"Clothed bulge",PromptBuilder.BULGE_OPTIONS);
+        length=choiceIn(penisControls,"Length (independent)",QualityTuning.LENGTHS);
+        length.setSelection(2);
+        girth=choiceIn(penisControls,"Girth (independent)",QualityTuning.GIRTHS);
+        girth.setSelection(2);
+        testicleSize=choiceIn(penisControls,"Testicle size",QualityTuning.TESTICLE_SIZES);
         AdapterView.OnItemSelectedListener visibility=new AdapterView.OnItemSelectedListener(){
             @Override public void onItemSelected(AdapterView<?> parent,View view,int position,long id) {
                 refreshPenisControls();
@@ -127,6 +145,11 @@ public final class GuidedStudioActivity extends Activity {
         clothing=input("Outfit / clothing (optional)","",false);
         traits=input("Character traits and details (optional)","",true);
         line();
+        title("Face, composition and proportions",18);
+        faceMode=choice("Face detail priority",QualityTuning.FACE_MODES);
+        proportionMode=choice("Proportions",QualityTuning.PROPORTION_MODES);
+        proportionMode.setSelection(1);
+        complexity=choice("Scene complexity",QualityTuning.COMPLEXITY_MODES);
         title("Prompts and quality",18);
         anatomyPriority=new CheckBox(this);
         anatomyPriority.setText("Anatomy priority: cleaner limbs, proportions, details");
@@ -145,6 +168,7 @@ public final class GuidedStudioActivity extends Activity {
         negativePreview=note("");
         configPreview=note("");
         action(body,"Build / Update Prompt",()->buildAndDisplay(false,false));
+        action(body,"Long Prompt Planner (beyond 77 over img2img passes)",this::showLongPromptPlanner);
         action(body,"Open Generator + Import Preset",()->sendRecipe(false,false));
         LinearLayout modeButtons=row();
         action(modeButtons,"Preview ×4",()->sendRecipe(true,false));
@@ -249,11 +273,19 @@ public final class GuidedStudioActivity extends Activity {
         c.penisState=penisState.getSelectedItemPosition();
         c.testicles=testicles.getSelectedItemPosition();
         c.bulge=bulge.getSelectedItemPosition();
+        c.length=length.getSelectedItemPosition();
+        c.girth=girth.getSelectedItemPosition();
+        c.testicleSize=testicleSize.getSelectedItemPosition();
         s.character=c;s.scene=scene.getSelectedItemPosition();
         s.style=style.getSelectedItemPosition();s.quality=quality.getSelectedItemPosition();
         s.contentLevel=contentLevel.getSelectedItemPosition();
         s.camera=camera.getSelectedItemPosition();
         s.speedProfile=speedProfile.getSelectedItemPosition();
+        s.faceMode=faceMode.getSelectedItemPosition();
+        s.proportionMode=proportionMode.getSelectedItemPosition();
+        s.complexity=complexity.getSelectedItemPosition();
+        s.customStylePositive=str(customStylePositive);
+        s.customStyleNegative=str(customStyleNegative);
         s.anatomyPriority=anatomyPriority.isChecked();
         s.freeformOnly=freeform.isChecked();
         s.userPrompt=str(userPrompt);s.extraNegative=str(customNegative);s.seed=str(seed);
@@ -267,7 +299,9 @@ public final class GuidedStudioActivity extends Activity {
             negativePreview.setText("NEGATIVE\n"+recipe.negative);
             configPreview.setText("STEPS "+recipe.steps+" | CFG "+recipe.cfg+
                 " | "+recipe.width+"×"+recipe.height+" | "+recipe.scheduler+
-                "\n"+recipe.explanation);
+                "\n"+recipe.explanation
+                +"\nEstimated long-prompt passes: "+LongPromptPlanner.plan(recipe.positive).passes.size()
+                +" (model BPE count may differ).");
             return recipe;
         } catch(Exception ex) {
             recipePreview.setText("Preset error: "+ex.getMessage());
@@ -287,6 +321,19 @@ public final class GuidedStudioActivity extends Activity {
             params.put("_localdream_params",true);
             params.put("v",1);
             // Only known fields accepted by Local Dream ParamShare.tryDecode.
+            LongPromptPlanner.Plan plan=LongPromptPlanner.plan(recipe.positive);
+            if(plan.requiresImg2Img){
+                new AlertDialog.Builder(this)
+                    .setTitle("Prompt exceeds one safe text window")
+                    .setMessage("This build's SD1.5 native backend reads only the first "
+                        +"77 CLIP positions. Importing your full prompt directly "
+                        +"would silently lose later instructions. Open the multi-pass "
+                        +"planner to use additional chunks with img2img.")
+                    .setNegativeButton("Cancel",null)
+                    .setPositiveButton("Open planner",(d,w)->showLongPromptPlanner())
+                    .show();
+                return;
+            }
             params.put("prompt",recipe.positive);
             params.put("negative_prompt",recipe.negative);
             params.put("steps",recipe.steps);
@@ -331,6 +378,9 @@ public final class GuidedStudioActivity extends Activity {
         j.put("penisState",c.penisState);
         j.put("testicles",c.testicles);
         j.put("bulge",c.bulge);
+        j.put("length",c.length);
+        j.put("girth",c.girth);
+        j.put("testicleSize",c.testicleSize);
         return j;
     }
     private PromptBuilder.Character characterOf(JSONObject j){
@@ -348,6 +398,9 @@ public final class GuidedStudioActivity extends Activity {
         c.penisState=j.optInt("penisState",0);
         c.testicles=j.optInt("testicles",0);
         c.bulge=j.optInt("bulge",0);
+        c.length=j.optInt("length",2);
+        c.girth=j.optInt("girth",2);
+        c.testicleSize=j.optInt("testicleSize",0);
         return c;
     }
     private void loadProfiles(){
@@ -384,6 +437,8 @@ public final class GuidedStudioActivity extends Activity {
         select(penisState,c.penisState);
         select(testicles,c.testicles);
         select(bulge,c.bulge);
+        select(length,c.length);select(girth,c.girth);
+        select(testicleSize,c.testicleSize);
         refreshPenisControls();
     }
     private void saveProfile(){
@@ -457,6 +512,7 @@ public final class GuidedStudioActivity extends Activity {
                 JSONObject document=new JSONObject();
                 document.put("format","velvet-atelier-characters-v1");
                 document.put("profiles",new JSONArray(prefs().getString(SAVED,"[]")));
+                document.put("styles",new JSONArray(prefs().getString(STYLE_CARDS,"[]")));
                 String draft=prefs().getString("draft",null);
                 if(draft!=null)document.put("draft",new JSONObject(draft));
                 try(OutputStream out=getContentResolver().openOutputStream(uri)){
@@ -480,6 +536,9 @@ public final class GuidedStudioActivity extends Activity {
                     new String(buffer.toByteArray(),StandardCharsets.UTF_8));
                 if(!"velvet-atelier-characters-v1".equals(document.optString("format")))
                     throw new IOException("Not a compatible Velvet character backup");
+                JSONArray styleSource=document.optJSONArray("styles");
+                if(styleSource!=null && styleSource.length()>32)
+                    throw new IOException("Maximum 32 imported styles");
                 JSONArray source=document.getJSONArray("profiles");
                 if(source.length()>64)throw new IOException("Maximum 64 saved characters");
                 JSONArray filtered=new JSONArray();
@@ -498,15 +557,126 @@ public final class GuidedStudioActivity extends Activity {
                     PromptBuilder.build(check,false,false);
                 }
                 SharedPreferences.Editor edit=prefs().edit().putString(SAVED,filtered.toString());
+                if(styleSource!=null){
+                    JSONArray validatedStyles=new JSONArray();
+                    for(int i=0;i<styleSource.length();i++){
+                        JSONObject o=styleSource.getJSONObject(i);
+                        if(o.optString("name","").length()>90
+                            || o.optString("positive","").length()>4000
+                            || o.optString("negative","").length()>4000)
+                            throw new IOException("Invalid style card");
+                        validatedStyles.put(o);
+                    }
+                    edit.putString(STYLE_CARDS,validatedStyles.toString());
+                }
                 if(draft==null)edit.remove("draft");
                 else edit.putString("draft",draft.toString());
                 edit.apply();
-                loadProfiles();
+                loadProfiles();loadStyleOptions();
                 if(draft!=null)restoreDraft();
                 buildAndDisplay(false,false);
                 Toast.makeText(this,"Imported "+filtered.length()+" character cards",Toast.LENGTH_LONG).show();
             }
         }catch(Exception ex){error(ex);}
+    }
+
+    private void showLongPromptPlanner(){
+        PromptBuilder.Recipe recipe=buildAndDisplay(false,false);
+        if(recipe==null)return;
+        try {
+            LongPromptPlanner.Plan plan=LongPromptPlanner.plan(recipe.positive);
+            StringBuilder report=new StringBuilder();
+            report.append("Native backend: 77 CLIP positions per pass.\n");
+            report.append("Estimated words: ").append(plan.totalWords)
+                .append(" | Passes: ").append(plan.passes.size()).append("\n");
+            report.append(LongPromptPlanner.instructions(plan));
+            report.append("\n\nSelect a pass to copy its prompt parameters.");
+            String[] choices=new String[plan.passes.size()];
+            for(int i=0;i<choices.length;i++){
+                choices[i]="Pass "+(i+1)+": "+plan.passes.get(i);
+            }
+            new AlertDialog.Builder(this).setTitle("Long Prompt Workflow")
+                .setMessage(report.toString())
+                .setItems(choices,(d,which)->copyPromptPass(recipe,plan.passes.get(which),which,plan.passes.size()))
+                .setNegativeButton("Close",null)
+                .show();
+        }catch(Exception e){error(e);}
+    }
+    private void copyPromptPass(PromptBuilder.Recipe r,String positive,int index,int count){
+        try {
+            JSONObject params=new JSONObject();
+            params.put("_localdream_params",true);
+            params.put("v",1);
+            params.put("prompt",positive);
+            // Negative prompt can also overflow; separate it from the
+            // positional positive prompts and keep the first safe segment.
+            LongPromptPlanner.Plan negPlan=LongPromptPlanner.plan(r.negative);
+            params.put("negative_prompt",negPlan.passes.get(0));
+            params.put("steps",index==0?r.steps:Math.min(18,r.steps));
+            params.put("cfg",r.cfg);
+            params.put("scheduler",r.scheduler);
+            if(index==0 && r.seed>=0)params.put("seed",r.seed);
+            ClipboardManager clipboard=(ClipboardManager)getSystemService(Context.CLIPBOARD_SERVICE);
+            clipboard.setPrimaryClip(ClipData.newPlainText("Velvet Pass "+(index+1),params.toString()));
+            new AlertDialog.Builder(this)
+                .setTitle("Pass "+(index+1)+" of "+count+" copied")
+                .setMessage(index==0
+                    ?"Start text-to-image using this prompt, save the result. Check Local Dream's actual token count."
+                    :"Use the previous result as the img2img SOURCE before importing "
+                    +"this pass. Use LOW denoise to retain composition. This is "
+                    +"multi-pass conditioning, not a native concatenated context."
+                ).setNegativeButton("Close",null)
+                .setPositiveButton("Open generator",(d,w)->openGenerator()).show();
+        }catch(Exception ex){error(ex);}
+    }
+    private void loadStyleOptions(){
+        ArrayList<String> options=new ArrayList<>();
+        options.add("(No saved style)");
+        try {
+            JSONArray a=new JSONArray(prefs().getString(STYLE_CARDS,"[]"));
+            for(int i=0;i<a.length() && i<32;i++)
+                options.add(a.getJSONObject(i).optString("name","Style "+(i+1)));
+        }catch(Exception ignored){}
+        savedStyles.setAdapter(new ArrayAdapter<>(this,
+            android.R.layout.simple_spinner_dropdown_item,options));
+    }
+    private void saveStyleCard(){
+        try{
+            String label=str(styleCardName);
+            if(label.isEmpty())throw new IllegalArgumentException("Name your style");
+            if(label.length()>90)throw new IllegalArgumentException("Style name too long");
+            PromptBuilder.Settings v=collect();
+            PromptBuilder.build(v,false,false);
+            JSONArray a=new JSONArray(prefs().getString(STYLE_CARDS,"[]"));
+            JSONObject value=new JSONObject();
+            value.put("name",label);
+            value.put("positive",v.customStylePositive);
+            value.put("negative",v.customStyleNegative);
+            int found=-1;
+            for(int i=0;i<a.length();i++)if(label.equalsIgnoreCase(
+                a.getJSONObject(i).optString("name"))){found=i;break;}
+            if(found>=0)a.put(found,value);
+            else {
+                if(a.length()>=32)throw new IllegalArgumentException("Maximum 32 styles");
+                a.put(value);
+            }
+            prefs().edit().putString(STYLE_CARDS,a.toString()).apply();
+            loadStyleOptions();
+            Toast.makeText(this,"Style saved on device",Toast.LENGTH_SHORT).show();
+        }catch(Exception e){error(e);}
+    }
+    private void loadStyleCard(){
+        try{
+            int index=savedStyles.getSelectedItemPosition()-1;
+            if(index<0)return;
+            JSONArray a=new JSONArray(prefs().getString(STYLE_CARDS,"[]"));
+            JSONObject v=a.getJSONObject(index);
+            styleCardName.setText(v.optString("name",""));
+            customStylePositive.setText(v.optString("positive",""));
+            customStyleNegative.setText(v.optString("negative",""));
+            style.setSelection(5);
+            buildAndDisplay(false,false);
+        }catch(Exception e){error(e);}
     }
 
     private void saveDraft(){
@@ -517,6 +687,11 @@ public final class GuidedStudioActivity extends Activity {
             j.put("scene",v.scene);j.put("style",v.style);j.put("quality",v.quality);
             j.put("contentLevel",v.contentLevel);j.put("camera",v.camera);
             j.put("speedProfile",v.speedProfile);
+            j.put("faceMode",v.faceMode);
+            j.put("proportionMode",v.proportionMode);
+            j.put("complexity",v.complexity);
+            j.put("customStylePositive",v.customStylePositive);
+            j.put("customStyleNegative",v.customStyleNegative);
             j.put("freeformOnly",v.freeformOnly);
             j.put("anatomyPriority",v.anatomyPriority);
             j.put("userPrompt",v.userPrompt);
@@ -537,6 +712,11 @@ public final class GuidedStudioActivity extends Activity {
             select(contentLevel,j.optInt("contentLevel",0));
             select(camera,j.optInt("camera",0));
             select(speedProfile,j.optInt("speedProfile",1));
+            select(faceMode,j.optInt("faceMode",0));
+            select(proportionMode,j.optInt("proportionMode",1));
+            select(complexity,j.optInt("complexity",0));
+            customStylePositive.setText(j.optString("customStylePositive",""));
+            customStyleNegative.setText(j.optString("customStyleNegative",""));
             select(style,j.optInt("style",0));select(quality,j.optInt("quality",1));
             freeform.setChecked(j.optBoolean("freeformOnly",false));
             anatomyPriority.setChecked(j.optBoolean("anatomyPriority",true));
