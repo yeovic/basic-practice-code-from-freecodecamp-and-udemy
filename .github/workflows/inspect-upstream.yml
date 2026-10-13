@@ -1,0 +1,27 @@
+name: Inspect Local Dream Android storage bytecode
+on:
+  workflow_dispatch:
+  push:
+    branches: [velvet-atelier-apk]
+    paths: [.github/workflows/inspect-upstream.yml]
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Decode current upstream release
+        run: |
+          curl -fL --retry 4 "https://github.com/xororz/local-dream/releases/download/v2.8.1/LocalDream_armv8a_2.8.1.apk" -o base.apk
+          curl -fL --retry 4 "https://github.com/iBotPeaches/Apktool/releases/download/v3.0.3/apktool_3.0.3.jar" -o apktool.jar
+          java -Xmx3g -jar apktool.jar d --force base.apk -o decoded > /dev/null
+      - name: Print relevant smali file and bytecode search
+        run: |
+          echo 'SMALI DIR CONTENTS'
+          ls -l decoded/ | head -40
+          echo 'COMPANION FILES'
+          find decoded/ -iname '*Model*Companion*' -o -iname '*ModelDownloadService*' | head -40
+          echo 'PATHS CONTAINING MODELS DIRECTORY STRING'
+          grep -RFl --include='*.smali' 'const-string.*"models"' decoded/smali* | head -50 || true
+          echo 'SMALI METHOD REFERENCES'
+          grep -Rnl --include='*.smali' 'getModelsDir' decoded/smali* | head -50 || true
+          echo 'MODEL DIR BYTECODE CONTEXT'
+          grep -Rn -B12 -A17 --include='*.smali' 'const-string.*"models"' decoded/smali* | head -240 || true
