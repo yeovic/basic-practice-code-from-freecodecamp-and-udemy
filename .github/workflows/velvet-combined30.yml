@@ -119,9 +119,18 @@ jobs:
           assert package.group(1)==original,package.group(1)
           m=m[:package.start(1)]+"org.velvetatelier.studio"+m[package.end(1):]
           m,n=re.subn(r'android:versionCode="[^"]+"','android:versionCode="300"',m,count=1)
-          if n!=1:raise RuntimeError("Manifest versionCode absent")
+          if n==0:
+            m=m.replace('<manifest ','<manifest android:versionCode="300" ',1)
           m,n=re.subn(r'android:versionName="[^"]+"','android:versionName="3.0.0"',m,count=1)
-          if n!=1:raise RuntimeError("Manifest versionName absent")
+          if n==0:
+            m=m.replace('<manifest ','<manifest android:versionName="3.0.0" ',1)
+          # Some Apktool variants keep versionInfo only in apktool.yml.
+          apktool_config=root/'apktool.yml'
+          if apktool_config.is_file():
+            config_text=apktool_config.read_text()
+            config_text=re.sub(r'(?m)^(\s*versionCode:\s*)[^\n]+',r'\g<1>300',config_text,count=1)
+            config_text=re.sub(r'(?m)^(\s*versionName:\s*)[^\n]+',r'\g<1>3.0.0',config_text,count=1)
+            apktool_config.write_text(config_text)
 
           m=m.replace('<manifest ', '<manifest android:installLocation="preferExternal" ',1)
           m=re.sub(r'android:name="\.([^"]+)"',lambda mt:'android:name="'+original+'.'+mt.group(1)+'"',m)
