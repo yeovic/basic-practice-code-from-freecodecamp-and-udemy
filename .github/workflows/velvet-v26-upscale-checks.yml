@@ -1,4 +1,4 @@
-name: Velvet v2.7 Conversion & Device QA
+name: Velvet v2.7 Model & Profile QA
 on:
   push:
     branches: [velvet-atelier-apk]
@@ -8,6 +8,7 @@ on:
       - 'velvet/ImageResamplerTest.java'
       - 'velvet/ImageUpscaleActivity.java'
       - 'velvet/VelvetHubActivity.java'
+      - 'velvet/GuidedStudioActivity.java'
       - 'velvet/IncludedModelProvider.java'
       - 'velvet/ModelDiagnostics.java'
   workflow_dispatch:
