@@ -50,13 +50,13 @@ jobs:
             'No authorship of the upstream inference engine is claimed.')
           data['about_app']=credits
           for key,value in data.items():
-            pattern=r'(<string\\s+name="'+re.escape(key)+r'"(?:\\s+[^>]*)?>).*?(</string>)'
+            pattern=r'(<string\s+name="'+re.escape(key)+r'"(?:\s+[^>]*)?>).*?(</string>)'
             xml,count=re.subn(pattern,lambda m:m.group(1)+escape(value)+m.group(2),xml,count=1,flags=re.S)
             print(key, count)
             if key=='app_name' and count!=1:
               raise RuntimeError('Cannot patch app name; incompatible upstream resource layout')
-          must=r'(<string\\s+name="must_read"[^>]*>)(.*?)(</string>)'
-          xml=re.sub(must,lambda m:m.group(1)+m.group(2)+r'\\n\\n'+escape(credits)+m.group(3),xml,count=1,flags=re.S)
+          must=r'(<string\s+name="must_read"[^>]*>)(.*?)(</string>)'
+          xml=re.sub(must,lambda m:m.group(1)+m.group(2)+r'\n\n'+escape(credits)+m.group(3),xml,count=1,flags=re.S)
           path.write_text(xml,encoding='utf-8')
           icon=root/'res/drawable/ic_launcher_foreground.xml'
           if icon.exists():
@@ -70,7 +70,7 @@ jobs:
           </vector>''',encoding='utf-8')
           asset=root/'assets/VELVET_ATELIER_ATTRIBUTION.txt'
           asset.parent.mkdir(exist_ok=True)
-          asset.write_text(credits+'\\n',encoding='utf-8')
+          asset.write_text(credits+'\n',encoding='utf-8')
           PY
       - name: Rebuild, sign and validate APK
         run: |
