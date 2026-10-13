@@ -192,8 +192,14 @@ public final class IncludedModelProvider extends ContentProvider {
                 Log.w(TAG,"Unable to reclaim 2.13 GB checkpoint after conversion");
             new File(dir,"clip_skip_1.mnn").delete();
             new File(dir,"clip_skip_2.mnn").delete();
+            org.json.JSONObject defaults=new org.json.JSONObject();
+            defaults.put("default_prompt","masterpiece, best quality, adult woman, anime art, detailed lighting");
+            defaults.put("default_negative_prompt","worst quality, low quality, poorly drawn hands, extra fingers, bad anatomy, child, underage");
+            defaults.put("default_steps",20);
+            defaults.put("default_cfg",7);
+            defaults.put("default_scheduler","euler_a");
             try(FileWriter config=new FileWriter(new File(dir,"config.json"))) {
-                config.write("{\\"default_prompt\\":\\"masterpiece, best quality, adult woman, anime art, detailed lighting\\",\\"default_negative_prompt\\":\\"worst quality, low quality, poorly drawn hands, extra fingers, bad anatomy, child, underage\\",\\"default_steps\\":20,\\"default_cfg\\":7,\\"default_scheduler\\":\\"euler_a\\"}");
+                config.write(defaults.toString());
             }
             notifyState(c,"READY — MeinaHentaiV21 installed. Open Generator now.",true);
         } catch(Throwable e) {
