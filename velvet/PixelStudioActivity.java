@@ -96,6 +96,7 @@ public final class PixelStudioActivity extends Activity {
         LinearLayout top=row(body);
         button(top,"Open AI Generator",()->openGenerator());
         button(top,"Import Image",this::importImage);
+        button(body,"Copy Pixel Art AI Prompt",this::copyPixelPrompt);
         preview=new Preview(this);
         LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,dp(315));
         p.topMargin=dp(14);p.bottomMargin=dp(10);
@@ -154,6 +155,18 @@ public final class PixelStudioActivity extends Activity {
     private void openGenerator() {
         try{startActivity(new Intent().setClassName(this,"io.github.xororz.localdream.MainActivity"));}
         catch(Exception e){showError(e);}
+    }
+
+    private void copyPixelPrompt() {
+        String prompt="masterpiece, best quality, 16-bit pixel art, 2d game sprite, "
+            +"one adult woman, solo, original character, full body, "
+            +"clear silhouette, defined edges, beautiful retro color palette, "
+            +"character portrait, limited colors, pixel illustration";
+        android.content.ClipboardManager manager=(android.content.ClipboardManager)
+            getSystemService(CLIPBOARD_SERVICE);
+        manager.setPrimaryClip(ClipData.newPlainText("Pixel Art Prompt",prompt));
+        Toast.makeText(this,"Copied pixel-art prompt for the offline AI generator",
+            Toast.LENGTH_LONG).show();
     }
 
     private void importImage(){
