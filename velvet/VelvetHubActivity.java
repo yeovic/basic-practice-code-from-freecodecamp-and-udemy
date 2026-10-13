@@ -101,6 +101,19 @@ public final class VelvetHubActivity extends Activity {
                 .setMessage(ModelStorage.describeMode(this))
                 .setPositiveButton("OK",null).show();
         });
+        action(body,"Device & model diagnostics",()->{
+            final String report=ModelDiagnostics.report(this);
+            new android.app.AlertDialog.Builder(this)
+                .setTitle("Offline device diagnostics")
+                .setMessage(report)
+                .setNegativeButton("Close",null)
+                .setPositiveButton("Copy report",(d,which)->{
+                    android.content.ClipboardManager clipboard=
+                        (android.content.ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
+                    clipboard.setPrimaryClip(android.content.ClipData.newPlainText(
+                        "Velvet Atelier Diagnostics",report));
+                }).show();
+        });
         subtitle(body,"Original inference engine: Local Dream by xororz and contributors (CC BY-NC 4.0). Bundled checkpoint: MeinaHentai v2.1 (Open RAIL-M). This is a noncommercial fork.");
         setContentView(scroll);
     }
