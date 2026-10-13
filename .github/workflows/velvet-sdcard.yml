@@ -106,24 +106,38 @@ jobs:
           from pathlib import Path
           import re
           root=Path('build/decoded')
-          specs=[
-            ('Model$Companion.smali','getModelsDir(Landroid/content/Context;)Ljava/io/File;',
-              'invoke-static {p1}, Lorg/velvetatelier/ModelStorage;->modelsDir(Landroid/content/Context;)Ljava/io/File;'),
-            ('ModelDownloadService.smali','getModelsDir()Ljava/io/File;',
-              'invoke-static {p0}, Lorg/velvetatelier/ModelStorage;->modelsDir(Landroid/content/Context;)Ljava/io/File;'),
-          ]
-          for filename,signature,invoke in specs:
-            matches=list(root.glob('smali*/**/'+filename))
-            if len(matches)!=1: raise RuntimeError('Missing or ambiguous class '+filename+': '+str(matches))
-            p=matches[0]
-            content=p.read_text()
-            pattern=r'(\.method[^\n]*\b'+re.escape(signature)+r'\n)(.*?)(\.end method)'
-            def replacement(m):
-              return m.group(1)+'    .locals 1\n\n    '+invoke+'\n    move-result-object v0\n    return-object v0\n'+m.group(3)
-            content,count=re.subn(pattern,replacement,content,count=1,flags=re.S)
-            if count!=1: raise RuntimeError('Missing target '+filename+': '+signature)
-            p.write_text(content)
-            print('Patched model storage:',p,signature)
+          # Release build has R8-obfuscated Kotlin class names: patch all exact
+          # file-root acquisitions immediately associated with the "models"
+          # directory string. This preserves the surrounding code and registers.
+          count_all=0
+          affected=[]
+          pattern=re.compile(
+              r'(invoke-virtual \{(?P<context>[vp]\d+)\}, '
+              r'Landroid/content/Context;->getFilesDir\(\)Ljava/io/File;)'
+              r'(?P<tail>[\s\S]{0,330}?)'
+              r'(const-string [vp]\d+, "models")'
+          )
+          for p in root.glob('smali*/**/*.smali'):
+            txt=p.read_text()
+            def swap(m):
+              global count_all
+              if '.end method' in m.group('tail'): return m.group(0)
+              if 'move-result-object' not in m.group('tail'): return m.group(0)
+              count_all+=1
+              newcall=('invoke-static {'+m.group('context')+'}, '
+                       'Lorg/velvetatelier/ModelStorage;->preferredBaseDir'
+                       '(Landroid/content/Context;)Ljava/io/File;')
+              return newcall + m.group('tail') + m.group(4)
+            upd=pattern.sub(swap,txt)
+            if upd != txt:
+              p.write_text(upd)
+              affected.append(str(p))
+          print('Storage-path invocation patches:',count_all)
+          print('Classes touched:',affected)
+          # Source version contains one central helper plus inlined model paths
+          # after R8 optimization. Reject builds that do not patch multiple paths.
+          if count_all < 5:
+            raise RuntimeError('Insufficient confirmed model-path patches: '+str(count_all))
           PY
       - name: Build and align Android package before inserting model data
         run: |
