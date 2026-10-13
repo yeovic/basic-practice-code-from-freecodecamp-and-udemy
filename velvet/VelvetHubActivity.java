@@ -37,9 +37,13 @@ public final class VelvetHubActivity extends Activity {
         title(body,"VELVET ATELIER",27,true);
         subtitle(body,"Private, entirely on-device creative studio");
         divider(body);
-        title(body,"Anime image generation",20,true);
-        subtitle(body,"The included MeinaHentai SD1.5 model generates still images locally. The first launch may need model conversion.");
-        action(body,"Open AI Generator",()->open("io.github.xororz.localdream.MainActivity"));
+        title(body,"Guided Image Studio v2.3",20,true);
+        subtitle(body,"Adult character cards, body/anatomy controls, scenes, anatomy-aware prompts and improved preview/refine recipes. Freeform mode remains available.");
+        action(body,"Open Guided Studio",()->startActivity(new Intent(this,GuidedStudioActivity.class)));
+        divider(body);
+        title(body,"Original AI generator",20,true);
+        subtitle(body,"Choose the converted MeinaHentaiV21 custom model, import your guided preset, or create freely with the original local generator.");
+        action(body,"Open Freeform AI Generator",()->open("io.github.xororz.localdream.MainActivity"));
         divider(body);
         title(body,"Included AI model setup",20,true);
         modelStatus=label(body,IncludedModelProvider.currentStatus(this));
