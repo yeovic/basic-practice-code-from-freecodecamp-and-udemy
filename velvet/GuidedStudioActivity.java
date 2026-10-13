@@ -7,6 +7,12 @@ import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.net.Uri;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import android.content.res.ColorStateList;
 import android.graphics.Typeface;
 import android.os.Bundle;
@@ -37,6 +43,8 @@ public final class GuidedStudioActivity extends Activity {
     private static final int BG=0xff19141f,INK=0xfff8f0fa,PURPLE=0xff794c93;
     private static final String PREFS="velvet_guided_profiles";
     private static final String SAVED="characters";
+    private static final int EXPORT_PROFILES=451;
+    private static final int IMPORT_PROFILES=452;
     private LinearLayout body;
     private Spinner savedProfiles,scene,contentLevel,camera,identity,figure,chest,hips,genitals,expression,style,quality;
     private Spinner penisSize,penisState,testicles,bulge,speedProfile;
@@ -66,6 +74,10 @@ public final class GuidedStudioActivity extends Activity {
         action(profileControls,"Load",this::loadSelected);
         action(profileControls,"Save / Update",this::saveProfile);
         action(profileControls,"Delete",this::deleteSelected);
+        LinearLayout portableControls=row();
+        action(portableControls,"Export Cards",this::exportCards);
+        action(portableControls,"Import Cards",this::importCards);
+        note("Export cards to a JSON file before upgrading to a separately installed version of Velvet Atelier. Import replaces saved cards and current draft.");
         line();
         title("Scene and render preset",18);
         scene=choice("Composition",PromptBuilder.SCENES);
@@ -413,6 +425,90 @@ public final class GuidedStudioActivity extends Activity {
                 loadProfiles();
             }).show();
     }
+    private void exportCards(){
+        try{
+            saveDraft();
+            Intent intent=new Intent(Intent.ACTION_CREATE_DOCUMENT);
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            intent.setType("application/json");
+            intent.putExtra(Intent.EXTRA_TITLE,"Velvet_Atelier_Profiles.json");
+            startActivityForResult(intent,EXPORT_PROFILES);
+        }catch(Exception e){error(e);}
+    }
+    private void importCards(){
+        new AlertDialog.Builder(this)
+            .setTitle("Import saved characters?")
+            .setMessage("Import replaces your current saved character cards and draft. "
+                +"Export a backup first if you want to preserve them.")
+            .setNegativeButton("Cancel",null)
+            .setPositiveButton("Choose JSON",(d,w)->{
+                Intent intent=new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                intent.addCategory(Intent.CATEGORY_OPENABLE);
+                intent.setType("application/json");
+                startActivityForResult(intent,IMPORT_PROFILES);
+            }).show();
+    }
+    @Override protected void onActivityResult(int request,int result,Intent data){
+        super.onActivityResult(request,result,data);
+        if(result!=RESULT_OK||data==null||data.getData()==null)return;
+        Uri uri=data.getData();
+        try{
+            if(request==EXPORT_PROFILES){
+                JSONObject document=new JSONObject();
+                document.put("format","velvet-atelier-characters-v1");
+                document.put("profiles",new JSONArray(prefs().getString(SAVED,"[]")));
+                String draft=prefs().getString("draft",null);
+                if(draft!=null)document.put("draft",new JSONObject(draft));
+                try(OutputStream out=getContentResolver().openOutputStream(uri)){
+                    if(out==null)throw new IOException("Cannot write profile backup");
+                    out.write(document.toString(2).getBytes(StandardCharsets.UTF_8));
+                    out.flush();
+                }
+                Toast.makeText(this,"Profile backup exported",Toast.LENGTH_SHORT).show();
+            }else if(request==IMPORT_PROFILES){
+                ByteArrayOutputStream buffer=new ByteArrayOutputStream();
+                try(InputStream stream=getContentResolver().openInputStream(uri)){
+                    if(stream==null)throw new IOException("Cannot open profile backup");
+                    byte[] chunk=new byte[8192];int len;
+                    while((len=stream.read(chunk))!=-1){
+                        if(buffer.size()+len>1024*1024)
+                            throw new IOException("Profile backup exceeds 1MB");
+                        buffer.write(chunk,0,len);
+                    }
+                }
+                JSONObject document=new JSONObject(
+                    new String(buffer.toByteArray(),StandardCharsets.UTF_8));
+                if(!"velvet-atelier-characters-v1".equals(document.optString("format")))
+                    throw new IOException("Not a compatible Velvet character backup");
+                JSONArray source=document.getJSONArray("profiles");
+                if(source.length()>64)throw new IOException("Maximum 64 saved characters");
+                JSONArray filtered=new JSONArray();
+                for(int i=0;i<source.length();i++){
+                    PromptBuilder.Character c=characterOf(source.getJSONObject(i));
+                    PromptBuilder.Settings check=new PromptBuilder.Settings();
+                    check.character=c;
+                    PromptBuilder.build(check,false,false);
+                    filtered.put(jsonOf(c));
+                }
+                JSONObject draft=document.optJSONObject("draft");
+                if(draft!=null){
+                    PromptBuilder.Settings check=new PromptBuilder.Settings();
+                    check.character=characterOf(draft);
+                    check.userPrompt=draft.optString("userPrompt","");
+                    PromptBuilder.build(check,false,false);
+                }
+                SharedPreferences.Editor edit=prefs().edit().putString(SAVED,filtered.toString());
+                if(draft==null)edit.remove("draft");
+                else edit.putString("draft",draft.toString());
+                edit.apply();
+                loadProfiles();
+                if(draft!=null)restoreDraft();
+                buildAndDisplay(false,false);
+                Toast.makeText(this,"Imported "+filtered.length()+" character cards",Toast.LENGTH_LONG).show();
+            }
+        }catch(Exception ex){error(ex);}
+    }
+
     private void saveDraft(){
         try{
             PromptBuilder.Settings v=collect();
