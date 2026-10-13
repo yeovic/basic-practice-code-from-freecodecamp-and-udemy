@@ -1,4 +1,4 @@
-name: Velvet v2.6 Upscale QA
+name: Velvet v2.7 Conversion & Device QA
 on:
   push:
     branches: [velvet-atelier-apk]
@@ -8,6 +8,8 @@ on:
       - 'velvet/ImageResamplerTest.java'
       - 'velvet/ImageUpscaleActivity.java'
       - 'velvet/VelvetHubActivity.java'
+      - 'velvet/IncludedModelProvider.java'
+      - 'velvet/ModelDiagnostics.java'
   workflow_dispatch:
 permissions:
   contents: read
@@ -35,5 +37,6 @@ jobs:
             velvet/PixelEngine.java velvet/GifWriter.java \
             velvet/PixelStudioActivity.java velvet/VelvetHubActivity.java \
             velvet/PromptBuilder.java velvet/GuidedStudioActivity.java \
-            velvet/ImageResampler.java velvet/ImageUpscaleActivity.java
-          echo 'PASS: v2.6 Android source compilation'
+            velvet/ImageResampler.java velvet/ImageUpscaleActivity.java \
+            velvet/ModelDiagnostics.java
+          echo 'PASS: v2.7 Android installer and diagnostics compilation'
