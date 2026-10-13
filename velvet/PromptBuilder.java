@@ -187,10 +187,16 @@ public final class PromptBuilder {
             append(prompt,bodyTags(c));
             if (hasVisiblePenis(c)) {
                 if(nude){
-                    // New dimensional controls override the old one-size
-                    // prompt to prevent contradiction (small vs thick etc).
+                    // Existing saved cards used one 'size' field; retain its
+                    // meaning unless the person changes the new dimensions.
+                    int effectiveLength=(c.length==2 && c.girth==2 && c.penisSize!=2)
+                        ? c.penisSize : c.length;
+                    int effectiveGirth=(c.length==2 && c.girth==2 && c.penisSize!=2)
+                        ? c.penisSize : c.girth;
                     append(prompt,QualityTuning.anatomyPositive(
-                        c.length,c.girth,c.testicleSize,true));
+                        effectiveLength,effectiveGirth,c.testicleSize,true));
+                    if(c.length==2 && c.girth==2 && c.penisSize<=1)
+                        append(prompt,c.penisSize==0?"(very small penis:1.2)":"(small penis:1.2)");
                 }
                 if(nude && c.penisState==1)append(prompt,"flaccid penis");
                 if(nude && c.penisState==2)append(prompt,"semi-erect penis");
@@ -249,8 +255,11 @@ public final class PromptBuilder {
         if(!settings.freeformOnly){
             append(negative,QualityTuning.faceNegative(settings.faceMode));
             append(negative,QualityTuning.proportionNegative(settings.proportionMode));
-            if(hasVisiblePenis(c) && nude)append(negative,
-                QualityTuning.anatomyNegative(c.length,c.girth,c.testicleSize,true));
+            if(hasVisiblePenis(c) && nude){
+                int len=(c.length==2 && c.girth==2 && c.penisSize!=2)?c.penisSize:c.length;
+                int gir=(c.length==2 && c.girth==2 && c.penisSize!=2)?c.penisSize:c.girth;
+                append(negative,QualityTuning.anatomyNegative(len,gir,c.testicleSize,true));
+            }
             if(settings.style==4)append(negative,QualityTuning.defaultStyleNegative());
             if(settings.style==5)append(negative,settings.customStyleNegative);
         }
