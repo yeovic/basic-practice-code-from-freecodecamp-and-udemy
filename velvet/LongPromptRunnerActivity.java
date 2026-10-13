@@ -13,6 +13,7 @@ import android.os.Looper;
 import android.util.Base64;
 import android.view.View;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -62,6 +63,7 @@ public final class LongPromptRunnerActivity extends Activity {
     private ImageView preview;
     private TextView status;
     private Button start,stop,save;
+    private CheckBox openClEnabled;
     private Bitmap finished;
 
     @Override public void onCreate(Bundle state){
@@ -90,6 +92,11 @@ public final class LongPromptRunnerActivity extends Activity {
         preview.setScaleType(ImageView.ScaleType.FIT_CENTER);
         preview.setBackgroundColor(0xff2f2838);
         body.addView(preview,new LinearLayout.LayoutParams(-1,550));
+        openClEnabled=new CheckBox(this);
+        openClEnabled.setText("Experimental OpenCL GPU compute (turn off if it crashes)");
+        openClEnabled.setTextColor(0xffd7c8e5);
+        openClEnabled.setChecked(false);
+        body.addView(openClEnabled);
         start=button(body,"Start local multi-pass generation",this::begin);
         stop=button(body,"Cancel",()->{cancel.set(true);HttpURLConnection c=currentConnection;if(c!=null)c.disconnect();});
         save=button(body,"Save final PNG",this::export);
@@ -121,6 +128,7 @@ public final class LongPromptRunnerActivity extends Activity {
             return;
         }
         busy=true;cancel.set(false);start.setEnabled(false);stop.setEnabled(true);save.setEnabled(false);
+        final boolean gpuRequested=openClEnabled.isChecked();
         worker.execute(()->{
             try{
                 startBackend();
@@ -140,7 +148,7 @@ public final class LongPromptRunnerActivity extends Activity {
                     ui("Pass "+(i+1)+"/"+count+" · generating...");
                     Bitmap next=generate(positive,negativePass,
                         i==0?steps:Math.min(18,steps),
-                        i==0?seed:-1,current,passIndex,count);
+                        i==0?seed:-1,current,passIndex,count,gpuRequested);
                     if(current!=null && current!=next)current.recycle();
                     current=next;
                     // Only display the final result: showing a temporary
@@ -257,7 +265,7 @@ public final class LongPromptRunnerActivity extends Activity {
         splitVerified(text.substring(cut+1).trim(),parts,depth+1);
     }
     private Bitmap generate(String positive,String negativePrompt,int stepCount,
-                            long stepSeed,Bitmap source,int index,int total)throws Exception{
+                            long stepSeed,Bitmap source,int index,int total,boolean useOpenCl)throws Exception{
         JSONObject req=new JSONObject();
         req.put("prompt",positive);
         req.put("negative_prompt",negativePrompt);
@@ -265,7 +273,7 @@ public final class LongPromptRunnerActivity extends Activity {
         req.put("cfg",cfg);
         req.put("width",width);req.put("height",height);
         req.put("scheduler",scheduler);
-        req.put("use_opencl",false);
+        req.put("use_opencl",useOpenCl);
         req.put("show_diffusion_process",false);
         req.put("preview_format","jpeg");
         req.put("output_format","raw");
