@@ -136,17 +136,27 @@ public final class LongPromptRunnerActivity extends Activity {
                     "Local inference backend did not become ready. Check model conversion and available RAM.");
                 List<String> prompts=exactPasses(prompt);
                 List<String> negatives=exactPasses(negative);
-                int count=Math.max(prompts.size(),negatives.size());
-                if(count>12)throw new IOException("Too many passes ("+count+"). Reduce prompt length.");
-                ui("Backend ready. "+count+" pass(es); native BPE validation complete.");
+                int count=GenerationPassPolicy.requiredPasses(
+                    prompts.size(),negatives.size());
+                // Negative-only overflow must never trigger an additional
+                // full diffusion pass. Keep the high-priority exclusions
+                // from the FIRST negative chunk on every pass.
+                String stableNegative=GenerationPassPolicy.stableNegative(negatives.get(0));
+                ui("Backend ready. "+count+" positive passes; "
+                    +"native BPE validation complete. Negative exclusions stay consistent.");
                 Bitmap current=null;
                 for(int i=0;i<count;i++){
                     if(cancel.get())throw new IOException("Generation cancelled");
-                    String positive=prompts.get(Math.min(i,prompts.size()-1));
-                    String negativePass=negatives.get(Math.min(i,negatives.size()-1));
+                    String positive=prompts.get(i);
+                    // Reaffirm identity/pose in each later pass, but only if
+                    // the *actual* native tokenizer says it fits.
+                    if(i>0){
+                        String anchor=GenerationPassPolicy.refinementPrompt(positive);
+                        if(nativeTokenCount(anchor)<=77)positive=anchor;
+                    }
                     int passIndex=i;
                     ui("Pass "+(i+1)+"/"+count+" · generating...");
-                    Bitmap next=generate(positive,negativePass,
+                    Bitmap next=generate(positive,stableNegative,
                         i==0?steps:Math.min(18,steps),
                         i==0?seed:-1,current,passIndex,count,gpuRequested);
                     if(current!=null && current!=next)current.recycle();
