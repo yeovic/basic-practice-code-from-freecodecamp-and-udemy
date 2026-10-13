@@ -5,6 +5,8 @@ import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
@@ -14,6 +16,12 @@ import android.widget.TextView;
 
 /** Native launcher hub. The original Local Dream generation activity is preserved. */
 public final class VelvetHubActivity extends Activity {
+    private TextView modelStatus;
+    private final Handler updateHandler=new Handler(Looper.getMainLooper());
+    private final Runnable refresh=new Runnable(){@Override public void run(){
+        if(modelStatus!=null)modelStatus.setText(IncludedModelProvider.currentStatus(VelvetHubActivity.this));
+        updateHandler.postDelayed(this,2000);
+    }};
     private static final int BACKGROUND=0xff181420, PANEL=0xff2a2234, FOREGROUND=0xfff8eefe;
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
@@ -33,6 +41,14 @@ public final class VelvetHubActivity extends Activity {
         subtitle(body,"The included MeinaHentai SD1.5 model generates still images locally. The first launch may need model conversion.");
         action(body,"Open AI Generator",()->open("io.github.xororz.localdream.MainActivity"));
         divider(body);
+        title(body,"Included AI model setup",20,true);
+        modelStatus=label(body,IncludedModelProvider.currentStatus(this));
+        action(body,"Retry / Continue Model Setup",()->{
+            IncludedModelProvider.startSetup(this);
+            modelStatus.setText(IncludedModelProvider.currentStatus(this));
+        });
+        subtitle(body,"The model appears under Custom Models only after first-run conversion creates its finished marker. This screen shows setup progress and any errors; if conversion fails, retry here.");
+        divider(body);
         title(body,"Pixel Loop Studio",20,true);
         subtitle(body,"Turn AI-generated artwork or your own images into consistent-palette pixel sprites and editable animated loops.");
         action(body,"Open Pixel Animator",()->startActivity(new Intent(this,PixelStudioActivity.class)));
@@ -50,6 +66,21 @@ public final class VelvetHubActivity extends Activity {
         setContentView(scroll);
     }
 
+    @Override protected void onResume(){
+        super.onResume();
+        updateHandler.removeCallbacks(refresh);
+        updateHandler.post(refresh);
+    }
+    @Override protected void onPause(){
+        updateHandler.removeCallbacks(refresh);
+        super.onPause();
+    }
+
+    private TextView label(LinearLayout body,String txt){
+        TextView t=new TextView(this);t.setText(txt);t.setTextSize(14);
+        t.setTextColor(0xffd9c5e3);t.setPadding(0,dp(8),0,dp(12));
+        body.addView(t);return t;
+    }
     private void open(String cls) {
         try { startActivity(new Intent().setClassName(this,cls)); }
         catch(Exception ex) {
