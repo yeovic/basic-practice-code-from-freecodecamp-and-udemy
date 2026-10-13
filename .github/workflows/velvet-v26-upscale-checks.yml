@@ -1,0 +1,39 @@
+name: Velvet v2.6 Upscale QA
+on:
+  push:
+    branches: [velvet-atelier-apk]
+    paths:
+      - '.github/workflows/velvet-v26-upscale-checks.yml'
+      - 'velvet/ImageResampler.java'
+      - 'velvet/ImageResamplerTest.java'
+      - 'velvet/ImageUpscaleActivity.java'
+      - 'velvet/VelvetHubActivity.java'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Java image-quality roundtrip checks
+        run: |
+          mkdir -p build/upscaleqa
+          javac -d build/upscaleqa velvet/ImageResampler.java velvet/ImageResamplerTest.java
+          java -cp build/upscaleqa org.velvetatelier.ImageResamplerTest
+          javac -d build/upscaleqa velvet/PromptBuilder.java velvet/PromptBuilderTest.java
+          java -cp build/upscaleqa org.velvetatelier.PromptBuilderTest
+      - name: Android API compilation
+        run: |
+          PLATFORM="$ANDROID_HOME/platforms/android-35/android.jar"
+          javac -source 8 -target 8 -cp "$PLATFORM" -d build/upscaleqa \
+            velvet/ModelStorage.java velvet/IncludedModelProvider.java \
+            velvet/PixelEngine.java velvet/GifWriter.java \
+            velvet/PixelStudioActivity.java velvet/VelvetHubActivity.java \
+            velvet/PromptBuilder.java velvet/GuidedStudioActivity.java \
+            velvet/ImageResampler.java velvet/ImageUpscaleActivity.java
+          echo 'PASS: v2.6 Android source compilation'
