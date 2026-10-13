@@ -43,5 +43,5 @@ jobs:
             velvet/PixelStudioActivity.java velvet/VelvetHubActivity.java \
             velvet/PromptBuilder.java velvet/GuidedStudioActivity.java \
             velvet/ImageResampler.java velvet/ImageUpscaleActivity.java \
-            velvet/ModelDiagnostics.java
+            velvet/ModelDiagnostics.java velvet/ModelArtifactVerifier.java
           echo 'PASS: v2.7 Android installer and diagnostics compilation'
