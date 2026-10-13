@@ -118,7 +118,7 @@ public final class IncludedModelProvider extends ContentProvider {
             new File(dir,"clip_skip_1.mnn").delete();
             new File(dir,"clip_skip_2.mnn").delete();
             try (java.io.FileWriter config = new java.io.FileWriter(new File(dir,"config.json"))) {
-                config.write("{\\\"default_prompt\\\":\\\"masterpiece, best quality, adult woman, anime art, detailed lighting\\\",\\\"default_negative_prompt\\\":\\\"worst quality, low quality, poorly drawn hands, extra fingers, bad anatomy, child, underage\\\",\\\"default_steps\\\":20,\\\"default_cfg\\\":7,\\\"default_scheduler\\\":\\\"euler_a\\\"}");
+                config.write("{\"default_prompt\":\"masterpiece, best quality, adult woman, anime art, detailed lighting\",\"default_negative_prompt\":\"worst quality, low quality, poorly drawn hands, extra fingers, bad anatomy, child, underage\",\"default_steps\":20,\"default_cfg\":7,\"default_scheduler\":\"euler_a\"}");
             }
             notifyState(c,"Model ready. Reopen Velvet Atelier to select MeinaHentaiV21.",true);
         } catch(Throwable e) {
