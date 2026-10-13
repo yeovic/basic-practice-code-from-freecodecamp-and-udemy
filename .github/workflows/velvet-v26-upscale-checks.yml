@@ -1,4 +1,4 @@
-name: Velvet v2.8 Quality & MultiPass QA
+name: Velvet v2.8 Quality & MultiPass QA rev2
 on:
   push:
     branches: [velvet-atelier-apk]
