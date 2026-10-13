@@ -31,6 +31,16 @@ public final class PromptBuilder {
     public static final String[] EXPRESSIONS={"Feminine","Very feminine","Androgynous","Tomboyish","Masculine"};
     public static final String[] STYLES={"Anime illustration","Soft anime painting","Detailed lineart","Retro pixel art"};
     public static final String[] QUALITY={"Balanced","Anatomy priority","Prompt freedom"};
+    /**
+     * Clothing/exposure is independent of identity or anatomy.
+     * 0 is the default for old saved profiles, preserving backwards compatibility.
+     */
+    public static final String[] CONTENT_LEVELS={
+        "Clothed / general","Adult nude","Consensual adult sexual scene"
+    };
+    public static final String[] CAMERA={
+        "Automatic","Face focus","Waist-up","Full figure","Two-adult framing"
+    };
 
     public static final class Character {
         public String name="New character";
@@ -51,7 +61,7 @@ public final class PromptBuilder {
 
     public static final class Settings {
         public Character character=new Character();
-        public int scene=0,style=0,quality=1;
+        public int scene=0,style=0,quality=1,contentLevel=0,camera=0;
         public boolean anatomyPriority=true;
         public boolean freeformOnly=false;
         public boolean useSameSeed=false;
@@ -89,6 +99,8 @@ public final class PromptBuilder {
         if(c.age<18 || c.age>120)throw new IllegalArgumentException("Adults aged 18+ only");
         requireIndex(settings.scene,SCENES);requireIndex(settings.style,STYLES);
         requireIndex(settings.quality,QUALITY);
+        requireIndex(settings.contentLevel,CONTENT_LEVELS);
+        requireIndex(settings.camera,CAMERA);
         requireIndex(c.identity,IDENTITIES);requireIndex(c.body,BODIES);
         requireIndex(c.chest,CHESTS);requireIndex(c.hips,HIPS);
         requireIndex(c.genitals,GENITALS);requireIndex(c.expression,EXPRESSIONS);
@@ -115,10 +127,17 @@ public final class PromptBuilder {
             case 8: width=512;height=512;framing="single character keyframe, neutral pose, readable silhouette, consistent front-facing design";break;
             default: throw new IllegalArgumentException("Scene unsupported");
         }
+        // The old "Solo adult scene" and "Two-adult scene" were merely framing
+        // hints; nothing directed the image model to make subjects nude or
+        // sexually active. This is a separate, explicit user choice now.
+        final boolean nude = settings.contentLevel >= 1;
+        final boolean intimate = settings.contentLevel == 2;
+        final boolean twoAdults = settings.scene == 6 || settings.camera == 4;
         StringBuilder prompt=new StringBuilder();
         if(!settings.freeformOnly){
             append(prompt,"masterpiece, best quality, detailed anime illustration");
-            if(settings.scene==6)append(prompt,"2 adults");
+            if(twoAdults)append(prompt,"2 adults, adult couple, consensual interaction");
+            else if(c.identity==5)append(prompt,"1boy, solo, adult");
             else append(prompt,"1girl, solo, adult");
             append(prompt,"adult age "+c.age);
             switch(c.identity){
@@ -132,10 +151,26 @@ public final class PromptBuilder {
             }
             append(prompt,bodyTags(c));
             append(prompt,expressionTags(c.expression));
+            // Exposure controls must not be contradicted by saved outfit
+            // descriptions. Otherwise the model typically draws clothing.
+            if(nude) {
+                append(prompt,"(nude:1.35), (naked:1.25), unclothed, visible skin, no outfit, uncensored adult anatomy");
+            }
+            if(intimate) {
+                if(twoAdults) {
+                    append(prompt,"consensual adult sex scene, physically intimate adult couple, close interaction, coherent shared pose");
+                } else {
+                    append(prompt,"explicit adult solo scene, sexual context, clear adult anatomy");
+                }
+            }
+            if(settings.camera==1)framing="face focus, portrait";
+            if(settings.camera==2)framing="waist up, upper body";
+            if(settings.camera==3)framing="full figure in frame, clearly visible anatomy";
+            if(settings.camera==4)framing="two adults in frame, both bodies clearly positioned";
             append(prompt,framing);
             if(!c.hair.trim().isEmpty())append(prompt,c.hair);
             if(!c.eyes.trim().isEmpty())append(prompt,c.eyes);
-            append(prompt,c.clothing);
+            if(!nude)append(prompt,c.clothing);
             append(prompt,c.traits);
             if(settings.style==1)append(prompt,"soft painterly anime rendering, subtle shading");
             if(settings.style==2)append(prompt,"clean crisp lineart, high detail, cel shading");
@@ -148,11 +183,16 @@ public final class PromptBuilder {
 
         StringBuilder negative=new StringBuilder(BASE_NEGATIVE);
         if(settings.anatomyPriority || settings.quality==1 || repair)append(negative,EXTRA_NEGATIVE);
+        if(nude && !settings.freeformOnly) {
+            // Relevant only to explicitly selected nudity. Never apply
+            // clothing negatives to ordinary portrait/fully dressed presets.
+            append(negative,"fully clothed, shirt, pants, jacket, dress, underwear, lingerie, censor bar, mosaic censoring");
+        }
         // Do not use male/female/penis as general negative tokens because
         // doing so conflicts with trans/futanari anatomy configurations.
         append(negative,settings.extraNegative);
         if(settings.quality==2)cfg=7.0f;
-        if(settings.scene==6)cfg=Math.min(cfg,6.3f);
+        if(twoAdults)cfg=Math.min(cfg,6.3f);
         if(preview)steps=16;
         if(repair)steps=36;
         steps=Math.max(1,Math.min(50,steps));
