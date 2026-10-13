@@ -85,9 +85,9 @@ public final class ImageResampler {
                     b+=rows[j][p+3]*w;
                 }
                 int alpha=toByte(a*255);
-                int red=alpha==0?0:toByte(r/Math.max(a,0.000001f));
-                int green=alpha==0?0:toByte(g/Math.max(a,0.000001f));
-                int blue=alpha==0?0:toByte(b/Math.max(a,0.000001f));
+                int red=alpha==0?0:toByte((r/Math.max(a,0.000001f))*255f);
+                int green=alpha==0?0:toByte((g/Math.max(a,0.000001f))*255f);
+                int blue=alpha==0?0:toByte((b/Math.max(a,0.000001f))*255f);
                 resultRow[x]=(alpha<<24)|(red<<16)|(green<<8)|blue;
             }
             output.accept(y,resultRow);
