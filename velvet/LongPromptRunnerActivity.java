@@ -131,9 +131,13 @@ public final class LongPromptRunnerActivity extends Activity {
         final boolean gpuRequested=openClEnabled.isChecked();
         worker.execute(()->{
             try{
+                long loadStarted=System.nanoTime();
                 startBackend();
                 if(!waitForBackend())throw new IOException(
                     "Local inference backend did not become ready. Check model conversion and available RAM.");
+                long loadMs=(System.nanoTime()-loadStarted)/1_000_000L;
+                LocalPerformanceLog.record(this,"backend_ready",0,width,height,loadMs,-1,gpuRequested);
+                ui("Local model backend ready in "+loadMs+" ms.");
                 List<String> prompts=exactPasses(prompt);
                 List<String> negatives=exactPasses(negative);
                 int count=GenerationPassPolicy.requiredPasses(
@@ -295,6 +299,7 @@ public final class LongPromptRunnerActivity extends Activity {
                 throw new IOException("Cannot encode intermediate PNG");
             req.put("image",Base64.encodeToString(png.toByteArray(),Base64.NO_WRAP));
         }
+        long inferenceStarted=System.nanoTime();
         HttpURLConnection c=open("/generate","POST");
         try{
             try(OutputStream out=c.getOutputStream()){
@@ -317,6 +322,12 @@ public final class LongPromptRunnerActivity extends Activity {
                     }else if("error".equals(type)){
                         throw new IOException(event.optString("message","Native generation error"));
                     }else if("complete".equals(type)){
+                        long elapsed=(System.nanoTime()-inferenceStarted)/1_000_000L;
+                        long nativeMs=event.optLong("generation_time_ms",-1L);
+                        LocalPerformanceLog.record(this,"prompt_pass_"+(index+1),
+                            stepCount,width,height,elapsed,nativeMs,useOpenCl);
+                        ui("Pass "+(index+1)+" finished in "+elapsed+" ms"
+                            +(nativeMs>=0?" (native "+nativeMs+" ms)":""));
                         byte[] bytes=Base64.decode(event.getString("image"),Base64.DEFAULT);
                         if("raw".equals(event.optString("format","raw"))){
                             int w=event.optInt("width",width),h=event.optInt("height",height);
