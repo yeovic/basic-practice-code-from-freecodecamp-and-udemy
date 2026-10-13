@@ -25,22 +25,49 @@ public final class IncludedModelProvider extends ContentProvider {
     private static final int NOTIFICATION_ID = 7101;
     private static boolean started = false;
 
-    @Override public boolean onCreate() {
-        Context context = getContext();
-        if (context == null) return true;
-        File ready = new File(new File(ModelStorage.modelsDir(context), MODEL), "finished");
-        if (ready.isFile()) return true;
-        synchronized (IncludedModelProvider.class) {
-            if (started) return true;
-            started = true;
+    private static volatile String status = "Checking included model";
+    private static volatile String lastError = "";
+    private static volatile int progressPercent = 0;
+
+    public static String currentStatus(Context c) {
+        File dir=new File(ModelStorage.modelsDir(c),MODEL);
+        File finished=new File(dir,"finished");
+        if(finished.isFile())return "READY — MeinaHentai v2.1 installed in "+dir.getAbsolutePath();
+        String state=status;
+        String diagnostic=readLastError(c);
+        if (!diagnostic.isEmpty()) state+="\\nLast error: "+diagnostic;
+        return state+"\\nTarget folder: "+dir.getAbsolutePath();
+    }
+    private static String readLastError(Context c) {
+        File f=new File(c.getFilesDir(),"velvet-model-error.txt");
+        if(!f.isFile())return "";
+        try(BufferedReader br=new BufferedReader(new FileReader(f))) {
+            String line=br.readLine();
+            return line==null?"":line;
+        }catch(IOException e){return "";}
+    }
+    public static synchronized void startSetup(Context c) {
+        Context app=c.getApplicationContext();
+        File dir=new File(ModelStorage.modelsDir(app),MODEL);
+        if(new File(dir,"finished").isFile()) {
+            status="READY — MeinaHentai v2.1";return;
         }
-        Context app = context.getApplicationContext();
-        Thread t = new Thread(() -> install(app), "Velvet-FirstRun-Model");
-        t.setPriority(Thread.NORM_PRIORITY - 1);
+        if(started)return;
+        started=true;
+        status="Preparing included model. Keep this screen open.";
+        File error=new File(app.getFilesDir(),"velvet-model-error.txt");
+        if(error.exists())error.delete();
+        Thread t=new Thread(()->install(app),"Velvet-Model-Setup");
+        t.setPriority(Thread.NORM_PRIORITY-1);
         t.start();
+    }
+    @Override public boolean onCreate() {
+        Context c=getContext();
+        if(c!=null)startSetup(c);
         return true;
     }
     private static void notifyState(Context c, String message, boolean done) {
+        status=message;
         try {
             NotificationManager n = (NotificationManager)c.getSystemService(Context.NOTIFICATION_SERVICE);
             n.createNotificationChannel(new NotificationChannel(CHANNEL,"Offline model setup",NotificationManager.IMPORTANCE_LOW));
@@ -57,7 +84,7 @@ public final class IncludedModelProvider extends ContentProvider {
             StatFs stat = new StatFs(ModelStorage.modelsDir(c).getAbsolutePath());
             if (stat.getAvailableBytes() < 6L * 1024 * 1024 * 1024)
                 throw new IOException("At least 6 GB free on selected storage (SD card or internal) for conversion.");
-            notifyState(c,"Preparing bundled model. Large offline conversion in progress.",false);
+            notifyState(c,"Reading 2.13 GB bundled model into local storage",false);
             new android.os.Handler(android.os.Looper.getMainLooper()).post(() ->
                 android.widget.Toast.makeText(c,"Installing included anime model. Reopen after setup is complete.",android.widget.Toast.LENGTH_LONG).show());
             if (dir.exists()) deleteTree(dir);
@@ -73,6 +100,7 @@ public final class IncludedModelProvider extends ContentProvider {
                 for(String part:parts) {
                     if(!part.startsWith("part-") || !part.endsWith(".bin")) continue;
                     found++;
+                    notifyState(c,"Unpacking bundled checkpoint part "+found+" of "+parts.length,false);
                     try(InputStream in=c.getAssets().open(ASSET_FOLDER+"/"+part,2)) {
                         int count;
                         while((count=in.read(buf))!=-1) {
@@ -87,7 +115,7 @@ public final class IncludedModelProvider extends ContentProvider {
             StringBuilder got=new StringBuilder();
             for(byte b:sha) got.append(String.format("%02x",b & 255));
             if(!MODEL_SHA256.equals(got.toString())) throw new IOException("Bundled model SHA256 verification failed");
-            notifyState(c,"Converting anime model locally. This can take a long time.",false);
+            notifyState(c,"Converting model for ARM64 Android. Keep app open.",false);
             copyAssetTree(c,"cvtbase",dir);
             File clip = new File(dir,"clip_skip_2.mnn");
             if (!clip.isFile()) throw new IOException("CLIP base architecture missing");
@@ -109,6 +137,11 @@ public final class IncludedModelProvider extends ContentProvider {
                 while ((line=reader.readLine())!=null) {
                     lastLine=line;
                     Log.i(TAG,line);
+                    if(line.length()>4 && line.length()<140 &&
+                       (line.toLowerCase().contains("convert") || line.toLowerCase().contains("%") ||
+                        line.toLowerCase().contains("done") || line.toLowerCase().contains("error"))) {
+                        status="Converting model: "+line;
+                    }
                 }
             }
             int result=proc.waitFor();
@@ -120,10 +153,14 @@ public final class IncludedModelProvider extends ContentProvider {
             try (java.io.FileWriter config = new java.io.FileWriter(new File(dir,"config.json"))) {
                 config.write("{\"default_prompt\":\"masterpiece, best quality, adult woman, anime art, detailed lighting\",\"default_negative_prompt\":\"worst quality, low quality, poorly drawn hands, extra fingers, bad anatomy, child, underage\",\"default_steps\":20,\"default_cfg\":7,\"default_scheduler\":\"euler_a\"}");
             }
-            notifyState(c,"Model ready. Reopen Velvet Atelier to select MeinaHentaiV21.",true);
+            notifyState(c,"READY — MeinaHentaiV21 installed. Open Generator now.",true);
         } catch(Throwable e) {
             Log.e(TAG,"Bundled model preparation failed",e);
-            notifyState(c,"Model setup failed: "+e.getMessage(),true);
+            lastError=String.valueOf(e.getMessage());
+            try(FileWriter w=new FileWriter(new File(c.getFilesDir(),"velvet-model-error.txt"))) {
+                w.write(lastError.replace('\\n',' ').replace('\\r',' ').substring(0,Math.min(500,lastError.length())));
+            }catch(Exception ignored){}
+            notifyState(c,"FAILED — model setup. Tap Retry in Velvet Atelier.",true);
         } finally {
             synchronized(IncludedModelProvider.class) { started=false; }
         }
