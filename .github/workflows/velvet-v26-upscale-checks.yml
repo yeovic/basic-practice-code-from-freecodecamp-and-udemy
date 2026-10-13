@@ -1,4 +1,4 @@
-name: Velvet v3.1 Native Face Repair QA
+name: Velvet v3.1 Local Diffusion Repair QA
 on:
   push:
     branches: [velvet-atelier-apk]
@@ -16,6 +16,7 @@ on:
       - 'velvet/FaceRepairStudioActivity.java'
       - 'velvet/FacePatchEngine.java'
       - 'velvet/FacePatchEngineTest.java'
+      - 'velvet/RepairPromptTemplates.java'
       - 'velvet/IncludedModelProvider.java'
       - 'velvet/ModelDiagnostics.java'
       - 'velvet/ModelArtifactVerifier.java'
@@ -37,7 +38,7 @@ jobs:
           mkdir -p build/upscaleqa
           javac -d build/upscaleqa velvet/ModelArtifactVerifier.java velvet/ModelArtifactVerifierTest.java
           java -cp build/upscaleqa org.velvetatelier.ModelArtifactVerifierTest
-          javac -d build/upscaleqa velvet/FacePatchEngine.java velvet/FacePatchEngineTest.java
+          javac -d build/upscaleqa velvet/FacePatchEngine.java velvet/FacePatchEngineTest.java velvet/RepairPromptTemplates.java
           java -cp build/upscaleqa org.velvetatelier.FacePatchEngineTest
           javac -d build/upscaleqa velvet/ImageResampler.java velvet/ImageResamplerTest.java
           java -cp build/upscaleqa org.velvetatelier.ImageResamplerTest
@@ -55,6 +56,7 @@ jobs:
             velvet/QualityTuning.java velvet/LongPromptPlanner.java \
             velvet/LongPromptRunnerActivity.java \
             velvet/FaceRepairStudioActivity.java velvet/FacePatchEngine.java \
+            velvet/RepairPromptTemplates.java \
             velvet/ImageResampler.java velvet/ImageUpscaleActivity.java \
             velvet/ModelDiagnostics.java velvet/ModelArtifactVerifier.java
           echo 'PASS: v3.1 face inpaint UI and quality pipeline Android source compilation'
