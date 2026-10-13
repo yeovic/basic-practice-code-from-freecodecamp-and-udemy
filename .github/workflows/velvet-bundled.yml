@@ -114,6 +114,9 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           import zipfile,hashlib
+          # Python zipfile defaults to a 2 GiB safety threshold even though ZIP32 permits 4 GiB.
+          # Use valid unsigned ZIP32 offsets so older Android package parsers stay compatible.
+          zipfile.ZIP64_LIMIT = 0xFFFFFFFF - 65536
           path=Path('build/aligned.apk')
           model=Path('build/meinahentai_v21.safetensors')
           CHUNK=128*1024*1024
