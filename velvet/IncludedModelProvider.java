@@ -158,7 +158,7 @@ public final class IncludedModelProvider extends ContentProvider {
             Log.e(TAG,"Bundled model preparation failed",e);
             lastError=String.valueOf(e.getMessage());
             try(FileWriter w=new FileWriter(new File(c.getFilesDir(),"velvet-model-error.txt"))) {
-                w.write(lastError.replace('\\n',' ').replace('\\r',' ').substring(0,Math.min(500,lastError.length())));
+                w.write(lastError.replace('\n',' ').replace('\r',' ').substring(0,Math.min(500,lastError.length())));
             }catch(Exception ignored){}
             notifyState(c,"FAILED — model setup. Tap Retry in Velvet Atelier.",true);
         } finally {
