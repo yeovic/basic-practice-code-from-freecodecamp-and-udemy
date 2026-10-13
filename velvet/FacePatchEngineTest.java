@@ -24,6 +24,19 @@ public final class FacePatchEngineTest {
         check(java.util.Arrays.equals(disabled,image),"Zero-strength blend changed input");
         check(image[(rect.top+rect.size/2)*w+rect.left+rect.size/2]==0xff202020,
             "Compositing mutated source");
+        for(int target=0;target<RepairPromptTemplates.TARGETS.length;target++){
+            for(int size=0;size<RepairPromptTemplates.ANATOMY_SIZES.length;size++){
+                String pos=RepairPromptTemplates.positive(target,size);
+                String neg=RepairPromptTemplates.negative(target,size);
+                check(!pos.trim().isEmpty()&&!neg.trim().isEmpty(),"Empty repair guidance");
+                check(!pos.contains("null")&&!neg.contains("null"),"Malformed repair prompt");
+            }
+        }
+        check(RepairPromptTemplates.negative(3,1).contains("huge penis"),
+            "Small anatomy repair missing oversized exclusions");
+        check(!RepairPromptTemplates.negative(3,2).contains("huge penis"),
+            "Large size preference contradicted by negative prompt");
+        System.out.println("PASS: face/hand/body/anatomy repair prompts and size-aware negatives");
         System.out.println("PASS: selected face crop bounds, feather continuity and local-only compositor");
     }
 }
