@@ -13,11 +13,14 @@ import android.os.StatFs;
 import android.util.Log;
 import java.io.*;
 import java.util.Map;
+import java.util.Arrays;
+import java.security.MessageDigest;
 
 public final class IncludedModelProvider extends ContentProvider {
     private static final String TAG = "VelvetModel";
     private static final String MODEL = "MeinaHentaiV21";
-    private static final String ASSET = "included/meinahentai_v21.safetensors";
+    private static final String ASSET_FOLDER = "included";
+    private static final String MODEL_SHA256 = "deb40a068adf41aa2466dc8e76b516216af1c1afe721dfd23fc2c1108b4d152f";
     private static final String CHANNEL = "velvet_model_install";
     private static final int NOTIFICATION_ID = 7101;
     private static boolean started = false;
@@ -54,16 +57,36 @@ public final class IncludedModelProvider extends ContentProvider {
             StatFs stat = new StatFs(c.getFilesDir().getAbsolutePath());
             if (stat.getAvailableBytes() < 6L * 1024 * 1024 * 1024)
                 throw new IOException("At least 6 GB free space required for unpacking and conversion.");
-            notifyState(c,"Preparing the bundled adult-anime model. Keep the app open.",false);
+            notifyState(c,"Preparing bundled model. Large offline conversion in progress.",false);
+            new android.os.Handler(android.os.Looper.getMainLooper()).post(() ->
+                android.widget.Toast.makeText(c,"Installing included anime model. Reopen after setup is complete.",android.widget.Toast.LENGTH_LONG).show());
             if (dir.exists()) deleteTree(dir);
             if (!dir.mkdirs()) throw new IOException("Cannot create model directory");
             File original = new File(dir,"model.safetensors");
-            try (InputStream in = c.getAssets().open(ASSET, 2);
-                 OutputStream out = new BufferedOutputStream(new FileOutputStream(original), 1024*1024)) {
+            String[] parts=c.getAssets().list(ASSET_FOLDER);
+            if(parts==null) throw new IOException("Model chunks are missing from APK");
+            Arrays.sort(parts);
+            MessageDigest digest=MessageDigest.getInstance("SHA-256");
+            int found=0;
+            try (OutputStream out = new BufferedOutputStream(new FileOutputStream(original), 1024*1024)) {
                 byte[] buf = new byte[1024*1024];
-                int count;
-                while ((count = in.read(buf)) != -1) out.write(buf,0,count);
+                for(String part:parts) {
+                    if(!part.startsWith("part-") || !part.endsWith(".bin")) continue;
+                    found++;
+                    try(InputStream in=c.getAssets().open(ASSET_FOLDER+"/"+part,2)) {
+                        int count;
+                        while((count=in.read(buf))!=-1) {
+                            out.write(buf,0,count);
+                            digest.update(buf,0,count);
+                        }
+                    }
+                }
             }
+            if(found<2) throw new IOException("Bundled weights are incomplete: "+found+" pieces");
+            byte[] sha=digest.digest();
+            StringBuilder got=new StringBuilder();
+            for(byte b:sha) got.append(String.format("%02x",b & 255));
+            if(!MODEL_SHA256.equals(got.toString())) throw new IOException("Bundled model SHA256 verification failed");
             notifyState(c,"Converting anime model locally. This can take a long time.",false);
             copyAssetTree(c,"cvtbase",dir);
             File clip = new File(dir,"clip_skip_2.mnn");
@@ -94,6 +117,9 @@ public final class IncludedModelProvider extends ContentProvider {
             original.delete();
             new File(dir,"clip_skip_1.mnn").delete();
             new File(dir,"clip_skip_2.mnn").delete();
+            try (java.io.FileWriter config = new java.io.FileWriter(new File(dir,"config.json"))) {
+                config.write("{\\\"default_prompt\\\":\\\"masterpiece, best quality, adult woman, anime art, detailed lighting\\\",\\\"default_negative_prompt\\\":\\\"worst quality, low quality, poorly drawn hands, extra fingers, bad anatomy, child, underage\\\",\\\"default_steps\\\":20,\\\"default_cfg\\\":7,\\\"default_scheduler\\\":\\\"euler_a\\\"}");
+            }
             notifyState(c,"Model ready. Reopen Velvet Atelier to select MeinaHentaiV21.",true);
         } catch(Throwable e) {
             Log.e(TAG,"Bundled model preparation failed",e);
