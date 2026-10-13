@@ -201,7 +201,10 @@ public final class FaceRepairStudioActivity extends Activity {
     private void updateOutline(){
         if(input==null||disposed)return;
         FacePatchEngine.Region r=selectedRegion();
-        if(outline!=null)outline.recycle();
+        if(outline!=null){
+            preview.setImageBitmap(null);
+            outline.recycle();
+        }
         outline=input.copy(Bitmap.Config.ARGB_8888,true);
         Canvas cv=new Canvas(outline);
         Paint p=new Paint(Paint.ANTI_ALIAS_FLAG);p.setColor(Color.CYAN);
