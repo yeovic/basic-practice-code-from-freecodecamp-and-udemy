@@ -10,7 +10,7 @@ on:
       - 'velvet/VelvetHubActivity.java'
       - 'velvet/GuidedStudioActivity.java'
       - 'velvet/IncludedModelProvider.java'
-      - 'velvet/ModelDiagnostics.java velvet/ModelArtifactVerifier.java'
+      - 'velvet/ModelDiagnostics.java'
       - 'velvet/ModelArtifactVerifier.java'
       - 'velvet/ModelArtifactVerifierTest.java'
   workflow_dispatch:
