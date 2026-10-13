@@ -15,6 +15,7 @@ import java.io.*;
 import java.util.Map;
 import java.util.Arrays;
 import java.security.MessageDigest;
+import java.util.Locale;
 
 public final class IncludedModelProvider extends ContentProvider {
     private static final String TAG = "VelvetModel";
@@ -22,6 +23,9 @@ public final class IncludedModelProvider extends ContentProvider {
     private static final String ASSET_FOLDER = "included";
     private static final String MODEL_SHA256 = "deb40a068adf41aa2466dc8e76b516216af1c1afe721dfd23fc2c1108b4d152f";
     private static final String CHANNEL = "velvet_model_install";
+    private static final long MODEL_BYTES = 2132651194L;
+    private static final long FIRST_SETUP_BYTES = 6L * 1024 * 1024 * 1024;
+    private static final long RETRY_CONVERSION_BYTES = 3L * 1024 * 1024 * 1024;
     private static final int NOTIFICATION_ID = 7101;
     private static volatile boolean started = false;
     public static boolean isBusy(){return started;}
@@ -39,8 +43,8 @@ public final class IncludedModelProvider extends ContentProvider {
             state="NOT READY in the selected storage. Tap Retry / Continue Model Setup.";
         }
         String diagnostic=readLastError(c);
-        if (!diagnostic.isEmpty()) state+="\\nLast error: "+diagnostic;
-        return state+"\\nTarget folder: "+dir.getAbsolutePath();
+        if (!diagnostic.isEmpty()) state+="\nLast error: "+diagnostic;
+        return state+"\nTarget folder: "+dir.getAbsolutePath();
     }
     private static String readLastError(Context c) {
         File f=new File(c.getFilesDir(),"velvet-model-error.txt");
@@ -85,89 +89,142 @@ public final class IncludedModelProvider extends ContentProvider {
     private static void install(Context c) {
         File dir = new File(ModelStorage.modelsDir(c), MODEL);
         try {
-            StatFs stat = new StatFs(ModelStorage.modelsDir(c).getAbsolutePath());
-            if (stat.getAvailableBytes() < 6L * 1024 * 1024 * 1024)
-                throw new IOException("At least 6 GB free on selected storage (SD card or internal) for conversion.");
-            notifyState(c,"Reading 2.13 GB bundled model into local storage",false);
-            new android.os.Handler(android.os.Looper.getMainLooper()).post(() ->
-                android.widget.Toast.makeText(c,"Installing included anime model. Reopen after setup is complete.",android.widget.Toast.LENGTH_LONG).show());
-            if (dir.exists()) deleteTree(dir);
-            if (!dir.mkdirs()) throw new IOException("Cannot create model directory");
-            File original = new File(dir,"model.safetensors");
-            String[] parts=c.getAssets().list(ASSET_FOLDER);
-            if(parts==null) throw new IOException("Model chunks are missing from APK");
-            Arrays.sort(parts);
-            MessageDigest digest=MessageDigest.getInstance("SHA-256");
-            int found=0;
-            try (OutputStream out = new BufferedOutputStream(new FileOutputStream(original), 1024*1024)) {
-                byte[] buf = new byte[1024*1024];
-                for(String part:parts) {
-                    if(!part.startsWith("part-") || !part.endsWith(".bin")) continue;
-                    found++;
-                    notifyState(c,"Unpacking bundled checkpoint part "+found+" of "+parts.length,false);
-                    try(InputStream in=c.getAssets().open(ASSET_FOLDER+"/"+part,2)) {
-                        int count;
-                        while((count=in.read(buf))!=-1) {
-                            out.write(buf,0,count);
-                            digest.update(buf,0,count);
+            // Preserve the downloaded checkpoint between failures. Repeatedly
+            // unpacking 2.13 GB on conversion errors is slow and wears storage.
+            if (!dir.isDirectory() && !dir.mkdirs())
+                throw new IOException("Cannot create model directory: "+dir);
+
+            File original = new File(dir, "model.safetensors");
+            File staging = new File(dir, "model.safetensors.part");
+            if (staging.exists() && !staging.delete())
+                throw new IOException("Cannot remove incomplete model extraction");
+
+            boolean haveVerifiedCheckpoint = false;
+            if(original.isFile() && original.length() == MODEL_BYTES) {
+                notifyState(c, "Found prior checkpoint. Verifying integrity before reuse.", false);
+                haveVerifiedCheckpoint = MODEL_SHA256.equals(sha256File(original));
+                if(!haveVerifiedCheckpoint) {
+                    notifyState(c, "Old checkpoint checksum mismatch; re-extracting.", false);
+                    if(!original.delete())
+                        throw new IOException("Cannot remove corrupted checkpoint");
+                }
+            } else if (original.exists() && !original.delete()) {
+                throw new IOException("Cannot remove truncated checkpoint");
+            }
+            StatFs stat = new StatFs(dir.getAbsolutePath());
+            long required = haveVerifiedCheckpoint ? RETRY_CONVERSION_BYTES : FIRST_SETUP_BYTES;
+            if(stat.getAvailableBytes() < required)
+                throw new IOException("Insufficient space on selected storage: "
+                    +(required/(1024*1024*1024))+" GB minimum needed for "
+                    +(haveVerifiedCheckpoint?"model conversion":"initial extraction and conversion"));
+
+            if(!haveVerifiedCheckpoint) {
+                notifyState(c,"Extracting 2.13 GB included checkpoint. Keep app open.",false);
+                String[] parts=c.getAssets().list(ASSET_FOLDER);
+                if(parts==null)throw new IOException("Checkpoint chunks absent from APK");
+                Arrays.sort(parts);
+                MessageDigest digest=MessageDigest.getInstance("SHA-256");
+                int found=0;
+                int total=0;
+                for(String p:parts)if(p.startsWith("part-")&&p.endsWith(".bin"))total++;
+                try(OutputStream out=new BufferedOutputStream(new FileOutputStream(staging),1024*1024)) {
+                    byte[] buf=new byte[256*1024];
+                    for(String part:parts) {
+                        if(!part.startsWith("part-")||!part.endsWith(".bin"))continue;
+                        found++;
+                        notifyState(c,"Unpacking checkpoint part "+found+" / "+total,false);
+                        try(InputStream in=c.getAssets().open(ASSET_FOLDER+"/"+part,2)) {
+                            int count;
+                            while((count=in.read(buf))!=-1) {
+                                out.write(buf,0,count);
+                                digest.update(buf,0,count);
+                            }
                         }
                     }
                 }
+                if(found!=total || total<2)
+                    throw new IOException("Missing checkpoint chunks: "+found+"/"+total);
+                if(staging.length()!=MODEL_BYTES)
+                    throw new IOException("Checkpoint length mismatch: "+staging.length());
+                String actual=hex(digest.digest());
+                if(!MODEL_SHA256.equals(actual))
+                    throw new IOException("Checkpoint checksum mismatch during extraction");
+                if(!staging.renameTo(original))
+                    throw new IOException("Cannot finalize verified checkpoint");
+            } else {
+                notifyState(c,"Verified saved checkpoint; skipping 2.13 GB extraction.",false);
             }
-            if(found<2) throw new IOException("Bundled weights are incomplete: "+found+" pieces");
-            byte[] sha=digest.digest();
-            StringBuilder got=new StringBuilder();
-            for(byte b:sha) got.append(String.format("%02x",b & 255));
-            if(!MODEL_SHA256.equals(got.toString())) throw new IOException("Bundled model SHA256 verification failed");
-            notifyState(c,"Converting model for ARM64 Android. Keep app open.",false);
+
+            notifyState(c,"Converting model for offline Android inference. Keep app open.",false);
             copyAssetTree(c,"cvtbase",dir);
             File clip = new File(dir,"clip_skip_2.mnn");
-            if (!clip.isFile()) throw new IOException("CLIP base architecture missing");
+            if(!clip.isFile())throw new IOException("CLIP skip-2 base not included");
             copyFile(clip,new File(dir,"clip_v2.mnn"));
             String nativeDir=c.getApplicationInfo().nativeLibraryDir;
             File executable=new File(nativeDir,"libstable_diffusion_core.so");
-            if (!executable.isFile()) throw new IOException("Native conversion executable missing");
-            ProcessBuilder processBuilder = new ProcessBuilder(
-                 executable.getAbsolutePath(),"--convert",dir.getAbsolutePath(),"--clip_skip_2");
-            processBuilder.directory(new File(nativeDir));
-            processBuilder.redirectErrorStream(true);
-            Map<String,String> env=processBuilder.environment();
+            if(!executable.isFile())
+                throw new IOException("Android ARM64 native converter not found");
+            ProcessBuilder builder=new ProcessBuilder(
+                executable.getAbsolutePath(),"--convert",dir.getAbsolutePath(),"--clip_skip_2");
+            builder.directory(new File(nativeDir));
+            builder.redirectErrorStream(true);
+            Map<String,String> env=builder.environment();
             env.put("LD_LIBRARY_PATH",nativeDir+":/system/lib64:/vendor/lib64:/vendor/lib64/egl");
             env.put("DSP_LIBRARY_PATH",nativeDir);
-            Process proc=processBuilder.start();
+            Process proc=builder.start();
             String lastLine="";
-            try (BufferedReader reader=new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
+            try(BufferedReader reader=new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
                 String line;
-                while ((line=reader.readLine())!=null) {
+                while((line=reader.readLine())!=null) {
                     lastLine=line;
                     Log.i(TAG,line);
+                    String lower=line.toLowerCase(Locale.ROOT);
                     if(line.length()>4 && line.length()<140 &&
-                       (line.toLowerCase().contains("convert") || line.toLowerCase().contains("%") ||
-                        line.toLowerCase().contains("done") || line.toLowerCase().contains("error"))) {
+                       (lower.contains("convert")||lower.contains("%")||
+                        lower.contains("done")||lower.contains("error")))
                         status="Converting model: "+line;
-                    }
                 }
             }
-            int result=proc.waitFor();
-            if (result!=0 || !new File(dir,"finished").exists())
-                throw new IOException("Conversion failed (exit "+result+"): "+lastLine);
-            original.delete();
+            int code=proc.waitFor();
+            if(code!=0 || !new File(dir,"finished").isFile())
+                throw new IOException("Model conversion failed (exit "+code+"): "+lastLine);
+            if(!original.delete())
+                Log.w(TAG,"Unable to reclaim 2.13 GB checkpoint after conversion");
             new File(dir,"clip_skip_1.mnn").delete();
             new File(dir,"clip_skip_2.mnn").delete();
-            try (java.io.FileWriter config = new java.io.FileWriter(new File(dir,"config.json"))) {
-                config.write("{\"default_prompt\":\"masterpiece, best quality, adult woman, anime art, detailed lighting\",\"default_negative_prompt\":\"worst quality, low quality, poorly drawn hands, extra fingers, bad anatomy, child, underage\",\"default_steps\":20,\"default_cfg\":7,\"default_scheduler\":\"euler_a\"}");
+            try(FileWriter config=new FileWriter(new File(dir,"config.json"))) {
+                config.write("{\\"default_prompt\\":\\"masterpiece, best quality, adult woman, anime art, detailed lighting\\",\\"default_negative_prompt\\":\\"worst quality, low quality, poorly drawn hands, extra fingers, bad anatomy, child, underage\\",\\"default_steps\\":20,\\"default_cfg\\":7,\\"default_scheduler\\":\\"euler_a\\"}");
             }
             notifyState(c,"READY — MeinaHentaiV21 installed. Open Generator now.",true);
         } catch(Throwable e) {
             Log.e(TAG,"Bundled model preparation failed",e);
             lastError=String.valueOf(e.getMessage());
             try(FileWriter w=new FileWriter(new File(c.getFilesDir(),"velvet-model-error.txt"))) {
-                w.write(lastError.replace('\n',' ').replace('\r',' ').substring(0,Math.min(500,lastError.length())));
+                w.write(lastError.replace('\n',' ').replace('\r',' ')
+                    .substring(0,Math.min(500,lastError.length())));
             }catch(Exception ignored){}
             notifyState(c,"FAILED — model setup. Tap Retry in Velvet Atelier.",true);
         } finally {
-            synchronized(IncludedModelProvider.class) { started=false; }
+            synchronized(IncludedModelProvider.class){started=false;}
         }
+    }
+
+    private static String sha256File(File file) throws Exception {
+        MessageDigest digest=MessageDigest.getInstance("SHA-256");
+        try(InputStream in=new BufferedInputStream(new FileInputStream(file),1024*1024)){
+            byte[] chunk=new byte[256*1024];
+            int n;
+            while((n=in.read(chunk))!=-1)digest.update(chunk,0,n);
+        }
+        return hex(digest.digest());
+    }
+    private static String hex(byte[] digest) {
+        StringBuilder output=new StringBuilder(digest.length*2);
+        for(byte b:digest){
+            output.append(Character.forDigit((b>>>4)&0xf,16));
+            output.append(Character.forDigit(b&0xf,16));
+        }
+        return output.toString();
     }
     private static void copyAssetTree(Context c,String assetPath,File dir) throws IOException {
         String[] children=c.getAssets().list(assetPath);
