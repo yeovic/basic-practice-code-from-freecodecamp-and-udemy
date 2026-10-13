@@ -1,11 +1,7 @@
 name: Build Velvet Atelier with bundled MeinaHentai V2.1
 on:
-  push:
-    branches: [velvet-atelier-apk]
-    paths:
-      - '.github/workflows/velvet-bundled.yml'
-      - 'velvet/**'
   workflow_dispatch:
+
 permissions:
   contents: write
 jobs:
