@@ -220,6 +220,10 @@ public final class PromptBuilder {
                     append(prompt,"explicit adult solo scene, sexual context, clear adult anatomy");
                 }
             }
+            // User's scene instruction is more important than optional
+            // cosmetic tags. Position it early enough for the native
+            // 75-content-token SD1.5 CLIP window.
+            append(prompt,settings.userPrompt);
             if(settings.camera==1)framing="face focus, portrait";
             if(settings.camera==2)framing="waist up, upper body";
             if(settings.camera==3)framing="full figure in frame, clearly visible anatomy";
@@ -237,7 +241,7 @@ public final class PromptBuilder {
             if(settings.quality!=2)append(prompt,"balanced body proportions, consistent eyes");
             if(repair)append(prompt,"clean anatomy, consistent body structure, clear limbs, detailed face, precise linework");
         }
-        append(prompt,settings.userPrompt);
+        if(settings.freeformOnly)append(prompt,settings.userPrompt);
         if(prompt.length()==0)throw new IllegalArgumentException("Enter a prompt");
 
         StringBuilder negative=new StringBuilder(BASE_NEGATIVE);
