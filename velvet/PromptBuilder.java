@@ -38,6 +38,11 @@ public final class PromptBuilder {
     public static final String[] CONTENT_LEVELS={
         "Clothed / general","Adult nude","Consensual adult sexual scene"
     };
+    public static final String[] PENIS_SIZES={"Very small","Small","Average (default)","Large","Very large"};
+    public static final String[] PENIS_STATES={"Automatic","Soft","Semi-erect","Erect"};
+    public static final String[] TESTICLE_OPTIONS={"Automatic","Not emphasized","Visible"};
+    public static final String[] BULGE_OPTIONS={"None","Subtle","Visible"};
+    public static final String[] SPEED_PROFILES={"Fast preview","Balanced","High detail"};
     public static final String[] CAMERA={
         "Automatic","Face focus","Waist-up","Full figure","Two-adult framing"
     };
@@ -50,11 +55,14 @@ public final class PromptBuilder {
         public String traits="";
         public int age=25;
         public int identity=0,body=1,chest=1,hips=1,genitals=0,expression=0;
+        public int penisSize=2,penisState=0,testicles=0,bulge=0;
         public Character copy(){
             Character x=new Character();
             x.name=name;x.hair=hair;x.eyes=eyes;x.clothing=clothing;x.traits=traits;
             x.age=age;x.identity=identity;x.body=body;x.chest=chest;x.hips=hips;
             x.genitals=genitals;x.expression=expression;
+            x.penisSize=penisSize;x.penisState=penisState;
+            x.testicles=testicles;x.bulge=bulge;
             return x;
         }
     }
@@ -62,6 +70,7 @@ public final class PromptBuilder {
     public static final class Settings {
         public Character character=new Character();
         public int scene=0,style=0,quality=1,contentLevel=0,camera=0;
+        public int speedProfile=1;
         public boolean anatomyPriority=true;
         public boolean freeformOnly=false;
         public boolean useSameSeed=false;
@@ -101,6 +110,11 @@ public final class PromptBuilder {
         requireIndex(settings.quality,QUALITY);
         requireIndex(settings.contentLevel,CONTENT_LEVELS);
         requireIndex(settings.camera,CAMERA);
+        requireIndex(settings.speedProfile,SPEED_PROFILES);
+        requireIndex(c.penisSize,PENIS_SIZES);
+        requireIndex(c.penisState,PENIS_STATES);
+        requireIndex(c.testicles,TESTICLE_OPTIONS);
+        requireIndex(c.bulge,BULGE_OPTIONS);
         requireIndex(c.identity,IDENTITIES);requireIndex(c.body,BODIES);
         requireIndex(c.chest,CHESTS);requireIndex(c.hips,HIPS);
         requireIndex(c.genitals,GENITALS);requireIndex(c.expression,EXPRESSIONS);
@@ -150,6 +164,16 @@ public final class PromptBuilder {
                 case 6:append(prompt,"adult androgynous character");break;
             }
             append(prompt,bodyTags(c));
+            if (hasVisiblePenis(c)) {
+                if(nude) append(prompt,penisSizePositive(c.penisSize));
+                if(nude && c.penisState==1)append(prompt,"flaccid penis");
+                if(nude && c.penisState==2)append(prompt,"semi-erect penis");
+                if(nude && c.penisState==3)append(prompt,"erect penis");
+                if(nude && c.testicles==1)append(prompt,"testicles not emphasized");
+                if(nude && c.testicles==2)append(prompt,"visible testicles");
+                if(!nude && c.bulge==1)append(prompt,"subtle clothing bulge");
+                if(!nude && c.bulge==2)append(prompt,"noticeable clothing bulge");
+            }
             append(prompt,expressionTags(c.expression));
             // Exposure controls must not be contradicted by saved outfit
             // descriptions. Otherwise the model typically draws clothing.
@@ -190,19 +214,33 @@ public final class PromptBuilder {
         }
         // Do not use male/female/penis as general negative tokens because
         // doing so conflicts with trans/futanari anatomy configurations.
+        if(hasVisiblePenis(c) && !settings.freeformOnly && c.penisSize<=2) {
+            append(negative,"huge penis, giant penis, oversized penis, monster proportions, unnaturally enormous genitals");
+        }
         append(negative,settings.extraNegative);
         if(settings.quality==2)cfg=7.0f;
         if(twoAdults)cfg=Math.min(cfg,6.3f);
-        if(preview)steps=16;
-        if(repair)steps=36;
+        // Fewer steps directly reduce the sampling work. Resolution is only
+        // advisory: Local Dream's parameter-import format does not contain it.
+        if(settings.speedProfile==0) {
+            steps=preview?10:18;
+            width=384;height=384;
+        } else if(settings.speedProfile==1) {
+            steps=preview?16:Math.min(steps,28);
+            width=512;height=512;
+        } else {
+            steps=preview?22:Math.max(steps,38);
+            width=512;height=512;
+        }
+        if(repair)steps=(settings.speedProfile==0?25:settings.speedProfile==1?36:44);
         steps=Math.max(1,Math.min(50,steps));
         long seed=parseSeed(settings.seed);
+        String explanation=(preview?"4-preview batch (set batch=4 in generator). "
+                         :repair?"Refine: use img2img/inpaint when repairing details. "
+                         :"Normal generation. ")
+                         +"Suggested "+width+"×"+height+" resolution; select it MANUALLY in Local Dream.";
         return new Recipe(prompt.toString(),negative.toString(),width,height,steps,cfg,
-            "euler_a",seed, preview
-              ? "Preview quality: choose 4 seeds using the generator's batch control."
-              : repair
-                ? "Refine setup: use the same seed, or use the generator's existing img2img/inpaint repair interface."
-                : "Balanced offline generation for the selected adult character and composition.");
+            "euler_a",seed,explanation);
     }
 
     public static long parseSeed(String raw){
@@ -212,6 +250,23 @@ public final class PromptBuilder {
             return (s>=0 && s<=2147483647L) ? s : -1;
         }catch(NumberFormatException e) {
             throw new IllegalArgumentException("Seed must be a positive integer <= 2147483647");
+        }
+    }
+
+    public static boolean hasVisiblePenis(Character c) {
+        if(c==null)return false;
+        if(c.genitals==4 || c.genitals==5 || c.genitals==1)return false;
+        return c.genitals==2 || c.genitals==3 ||
+               (c.genitals==0 && (c.identity==2 || c.identity==3));
+    }
+    public static String penisSizePositive(int size){
+        switch(size){
+            case 0:return "(very small penis:1.35), modest size, proportionate adult anatomy";
+            case 1:return "(small penis:1.3), modest penis size, proportionate anatomy";
+            case 2:return "(average-sized penis:1.3), natural anatomical proportions, realistic size";
+            case 3:return "large penis, anatomically proportionate body";
+            case 4:return "very large penis";
+            default:throw new IllegalArgumentException("Invalid penis size");
         }
     }
     public static String bodyTags(Character c){
