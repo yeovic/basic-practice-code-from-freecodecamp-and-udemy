@@ -1,4 +1,4 @@
-name: Velvet v3.1 Generation and Local Repair QA
+name: Velvet v3.3 Memory and Conditioning QA
 on:
   push:
     branches: [velvet-atelier-apk]
@@ -17,6 +17,9 @@ on:
       - 'velvet/FacePatchEngine.java'
       - 'velvet/FacePatchEngineTest.java'
       - 'velvet/RepairPromptTemplates.java'
+      - 'velvet/GenerationPassPolicy.java'
+      - 'velvet/GenerationPassPolicyTest.java'
+      - 'velvet/RegionSelectionView.java'
       - 'velvet/IncludedModelProvider.java'
       - 'velvet/ModelDiagnostics.java'
       - 'velvet/ModelArtifactVerifier.java'
@@ -38,6 +41,8 @@ jobs:
           mkdir -p build/upscaleqa
           javac -d build/upscaleqa velvet/ModelArtifactVerifier.java velvet/ModelArtifactVerifierTest.java
           java -cp build/upscaleqa org.velvetatelier.ModelArtifactVerifierTest
+          javac -d build/upscaleqa velvet/GenerationPassPolicy.java velvet/GenerationPassPolicyTest.java
+          java -cp build/upscaleqa org.velvetatelier.GenerationPassPolicyTest
           javac -d build/upscaleqa velvet/FacePatchEngine.java velvet/FacePatchEngineTest.java velvet/RepairPromptTemplates.java
           java -cp build/upscaleqa org.velvetatelier.FacePatchEngineTest
           javac -d build/upscaleqa velvet/ImageResampler.java velvet/ImageResamplerTest.java
@@ -56,7 +61,8 @@ jobs:
             velvet/QualityTuning.java velvet/LongPromptPlanner.java \
             velvet/LongPromptRunnerActivity.java \
             velvet/FaceRepairStudioActivity.java velvet/FacePatchEngine.java \
-            velvet/RepairPromptTemplates.java \
+            velvet/RegionSelectionView.java velvet/RepairPromptTemplates.java \
+            velvet/GenerationPassPolicy.java \
             velvet/ImageResampler.java velvet/ImageUpscaleActivity.java \
             velvet/ModelDiagnostics.java velvet/ModelArtifactVerifier.java
-          echo 'PASS: v3.1 face inpaint UI and quality pipeline Android source compilation'
+          echo 'PASS: v3.3 repaired UI, face cropping, long-prompt policies and Android source'
