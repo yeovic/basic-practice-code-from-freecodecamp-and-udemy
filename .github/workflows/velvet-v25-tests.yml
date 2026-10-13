@@ -1,15 +1,7 @@
 name: Velvet v2.5 Source Checks
 on:
-  push:
-    branches: [velvet-atelier-apk]
-    paths:
-      - '.github/workflows/velvet-v25-tests.yml'
-      - 'velvet/PromptBuilder.java'
-      - 'velvet/PromptBuilderTest.java'
-      - 'velvet/GuidedStudioActivity.java'
-      - 'velvet/ModelStorage.java'
-      - 'velvet/VelvetHubActivity.java'
   workflow_dispatch:
+
 permissions:
   contents: read
 jobs:
