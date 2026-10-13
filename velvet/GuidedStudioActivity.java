@@ -169,6 +169,7 @@ public final class GuidedStudioActivity extends Activity {
         configPreview=note("");
         action(body,"Build / Update Prompt",()->buildAndDisplay(false,false));
         action(body,"Long Prompt Planner (beyond 77 over img2img passes)",this::showLongPromptPlanner);
+        action(body,"Generate multi-pass locally (experimental)",this::launchLongPromptRunner);
         action(body,"Open Generator + Import Preset",()->sendRecipe(false,false));
         LinearLayout modeButtons=row();
         action(modeButtons,"Preview ×4",()->sendRecipe(true,false));
@@ -578,6 +579,30 @@ public final class GuidedStudioActivity extends Activity {
                 Toast.makeText(this,"Imported "+filtered.length()+" character cards",Toast.LENGTH_LONG).show();
             }
         }catch(Exception ex){error(ex);}
+    }
+
+    private void launchLongPromptRunner(){
+        PromptBuilder.Recipe r=buildAndDisplay(false,false);
+        if(r==null)return;
+        new AlertDialog.Builder(this)
+            .setTitle("Experimental local multi-pass inference")
+            .setMessage("This mode starts the included Local Dream backend and uses its "
+                +"actual CLIP tokenizer to split prompts into valid segments. "
+                +"It then runs sequential img2img passes (not longer native "
+                +"UNet attention). Several passes can change the pose or style, "
+                +"and your phone may run out of RAM. Original generator remains available.")
+            .setNegativeButton("Cancel",null)
+            .setPositiveButton("Run",(d,w)->{
+                Intent intent=new Intent(this,LongPromptRunnerActivity.class);
+                intent.putExtra(LongPromptRunnerActivity.EXTRA_POSITIVE,r.positive);
+                intent.putExtra(LongPromptRunnerActivity.EXTRA_NEGATIVE,r.negative);
+                intent.putExtra(LongPromptRunnerActivity.EXTRA_STEPS,r.steps);
+                intent.putExtra(LongPromptRunnerActivity.EXTRA_CFG,r.cfg);
+                intent.putExtra(LongPromptRunnerActivity.EXTRA_SEED,r.seed);
+                intent.putExtra(LongPromptRunnerActivity.EXTRA_SCHEDULER,r.scheduler);
+                intent.putExtra(LongPromptRunnerActivity.EXTRA_SIZE,r.width);
+                startActivity(intent);
+            }).show();
     }
 
     private void showLongPromptPlanner(){
