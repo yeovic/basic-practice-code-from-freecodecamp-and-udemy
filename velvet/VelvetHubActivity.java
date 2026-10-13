@@ -37,7 +37,7 @@ public final class VelvetHubActivity extends Activity {
         title(body,"VELVET ATELIER",27,true);
         subtitle(body,"Private, entirely on-device creative studio");
         divider(body);
-        title(body,"Guided Image Studio v2.3",20,true);
+        title(body,"Guided Image Studio · quality & speed",20,true);
         subtitle(body,"Adult character cards, body/anatomy controls, scenes, anatomy-aware prompts and improved preview/refine recipes. Freeform mode remains available.");
         action(body,"Open Guided Studio",()->startActivity(new Intent(this,GuidedStudioActivity.class)));
         divider(body);
@@ -56,6 +56,10 @@ public final class VelvetHubActivity extends Activity {
         title(body,"Pixel Loop Studio",20,true);
         subtitle(body,"Turn AI-generated artwork or your own images into consistent-palette pixel sprites and editable animated loops.");
         action(body,"Open Pixel Animator",()->startActivity(new Intent(this,PixelStudioActivity.class)));
+        divider(body);
+        title(body,"Image Upscale Studio",20,true);
+        subtitle(body,"Import saved AI images or photos. Enlarge 2×, 3×, or 4× using high-quality Lanczos3, fast bilinear, or true pixel-perfect scaling. All processing happens offline on your phone.");
+        action(body,"Open Image Upscaler",()->startActivity(new Intent(this,ImageUpscaleActivity.class)));
         divider(body);
         title(body,"Storage",18,true);
         String path=ModelStorage.modelsDir(this).getAbsolutePath();
