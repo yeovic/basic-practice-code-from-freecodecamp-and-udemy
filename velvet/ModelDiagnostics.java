@@ -46,6 +46,9 @@ public final class ModelDiagnostics {
         }catch(Exception e){out.append("Storage diagnostics unavailable: ").append(e.getMessage()).append("\n");}
         out.append("Model READY (full asset check): ")
             .append(IncludedModelProvider.modelReady(installed)).append("\n");
+        if(!IncludedModelProvider.modelReady(installed))
+            out.append("Missing runtime assets: ")
+                .append(ModelArtifactVerifier.missing(installed)).append("\n");
         File savedCheckpoint=new File(installed,"model.safetensors");
         out.append("Saved safetensors checkpoint: ")
             .append(savedCheckpoint.isFile()?bytes(savedCheckpoint.length()):"none")
