@@ -37,6 +37,18 @@ public final class FacePatchEngineTest {
         check(!RepairPromptTemplates.negative(3,2).contains("huge penis"),
             "Large size preference contradicted by negative prompt");
         System.out.println("PASS: face/hand/body/anatomy repair prompts and size-aware negatives");
+        int[] originalCrop=new int[rect.size*rect.size];
+        java.util.Arrays.fill(originalCrop,0xff151515);
+        int[] cropOnly=FacePatchEngine.compositePatch(originalCrop,patch,rect.size,6,.9f);
+        for(int py=0;py<rect.size;py++){
+            for(int px=0;px<rect.size;px++){
+                int oldPixel=output[(rect.top+py)*w+rect.left+px];
+                int cropPixel=cropOnly[py*rect.size+px];
+                check(oldPixel==cropPixel,"Cropped compositor differs from old full-size blend");
+            }
+        }
+        check(cropOnly[0]==originalCrop[0],"Crop feather did not protect edge");
+        System.out.println("PASS: cropped-only blending matches previous full-image composite");
         System.out.println("PASS: selected face crop bounds, feather continuity and local-only compositor");
     }
 }
