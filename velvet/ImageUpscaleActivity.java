@@ -128,14 +128,30 @@ public final class ImageUpscaleActivity extends Activity {
         if(status!=RESULT_OK||data==null||data.getData()==null)return;
         final Uri uri=data.getData();
         if(code==SAVE){
-            if(result==null)return;
-            try(OutputStream out=getContentResolver().openOutputStream(uri)){
-                if(out==null||!result.compress(Bitmap.CompressFormat.PNG,100,out))
-                    throw new IOException("PNG export failed");
-                out.flush();
-                info.setText("Saved transparent PNG at full "+result.getWidth()+"×"+result.getHeight()+" pixels.");
-            }catch(Exception e){showError(e);}
+            if(result==null||busy)return;
+            busy=true;
+            runButton.setEnabled(false);exportButton.setEnabled(false);
+            progressText.setText("Saving full resolution PNG on background thread…");
+            final Bitmap snapshot=result;
+            worker.execute(()->{
+                try(OutputStream out=getContentResolver().openOutputStream(uri)){
+                    if(out==null||!snapshot.compress(Bitmap.CompressFormat.PNG,100,out))
+                        throw new IOException("PNG export failed");
+                    out.flush();
+                    main.post(()->{
+                        if(!disposed)info.setText("Saved transparent PNG at full "
+                            +snapshot.getWidth()+"×"+snapshot.getHeight()+" pixels.");
+                        finishBusy();
+                    });
+                }catch(Exception e){
+                    main.post(()->{showError(e);finishBusy();});
+                }
+            });
         }else if(code==PICK){
+            if(busy)return;
+            busy=true;
+            runButton.setEnabled(false);
+            exportButton.setEnabled(false);
             info.setText("Loading source image…");
             worker.execute(()->{
                 try{
@@ -148,8 +164,11 @@ public final class ImageUpscaleActivity extends Activity {
                         image.setImageBitmap(source);
                         exportButton.setEnabled(false);
                         refreshDimensions();
+                        finishBusy();
                     });
-                }catch(Exception e){main.post(()->showError(e));}
+                }catch(Exception e){
+                    main.post(()->{showError(e);finishBusy();});
+                }
             });
         }
     }
@@ -194,6 +213,10 @@ public final class ImageUpscaleActivity extends Activity {
     }
     private void upscale(){
         if(original==null||busy)return;
+        // Release references to older upscaled bitmaps before starting a new
+        // memory-intensive job. The view must stop holding the old Bitmap.
+        image.setImageBitmap(original);
+        if(result!=null){result.recycle();result=null;}
         final int factor=scaleSelector.getSelectedItemPosition()+2;
         final int selected=methodSelector.getSelectedItemPosition();
         final int method=selected==0?ImageResampler.HIGH_QUALITY:
