@@ -37,7 +37,7 @@ public final class GuidedStudioActivity extends Activity {
     private static final String PREFS="velvet_guided_profiles";
     private static final String SAVED="characters";
     private LinearLayout body;
-    private Spinner savedProfiles,scene,identity,figure,chest,hips,genitals,expression,style,quality;
+    private Spinner savedProfiles,scene,contentLevel,camera,identity,figure,chest,hips,genitals,expression,style,quality;
     private EditText name,age,hair,eyes,clothing,traits,userPrompt,customNegative,seed;
     private CheckBox anatomyPriority,freeform;
     private TextView recipePreview,negativePreview,configPreview;
@@ -66,6 +66,9 @@ public final class GuidedStudioActivity extends Activity {
         line();
         title("Scene and render preset",18);
         scene=choice("Composition",PromptBuilder.SCENES);
+        contentLevel=choice("Adult-content level (choose explicitly)",PromptBuilder.CONTENT_LEVELS);
+        camera=choice("Camera / framing",PromptBuilder.CAMERA);
+        note("Nude and consensual adult-scene modes add content-specific prompt tags and remove conflicting outfit descriptions. Clothed remains the default.");
         style=choice("Rendering",PromptBuilder.STYLES);
         quality=choice("Generation preference",PromptBuilder.QUALITY);
         quality.setSelection(1);
@@ -114,6 +117,7 @@ public final class GuidedStudioActivity extends Activity {
         line();
         title("How generation works",17);
         note("The guided recipe is copied in Local Dream's import format. In the generator choose MeinaHentaiV21 under Custom Models when READY, then accept the parameter-import dialog. Your freeform text remains editable there.");
+        note("If nude/sexual selections still produce fully clothed images, verify Content level is not Clothed and inspect the imported POSITIVE/NEGATIVE prompts in the generator. The unfiltered Android release is used; model behavior can vary by tag and checkpoint.");
         note("For four previews choose the generator's batch count of 4. Select a favorite image from the history; for a second pass enter its seed above or use Local Dream's existing img2img / inpaint repair tools. This build does not automatically repair image anatomy.");
         note("MeinaHentai v2.1 is a locally converted SD1.5 anime model. Presets improve prompting, but anatomical quality depends on the model and device.");
         note("All profiles are saved locally in app preferences. No profile data is uploaded.");
@@ -186,6 +190,8 @@ public final class GuidedStudioActivity extends Activity {
         c.expression=expression.getSelectedItemPosition();
         s.character=c;s.scene=scene.getSelectedItemPosition();
         s.style=style.getSelectedItemPosition();s.quality=quality.getSelectedItemPosition();
+        s.contentLevel=contentLevel.getSelectedItemPosition();
+        s.camera=camera.getSelectedItemPosition();
         s.anatomyPriority=anatomyPriority.isChecked();
         s.freeformOnly=freeform.isChecked();
         s.userPrompt=str(userPrompt);s.extraNegative=str(customNegative);s.seed=str(seed);
@@ -350,6 +356,7 @@ public final class GuidedStudioActivity extends Activity {
             PromptBuilder.build(v,false,false);
             JSONObject j=jsonOf(v.character);
             j.put("scene",v.scene);j.put("style",v.style);j.put("quality",v.quality);
+            j.put("contentLevel",v.contentLevel);j.put("camera",v.camera);
             j.put("freeformOnly",v.freeformOnly);
             j.put("anatomyPriority",v.anatomyPriority);
             j.put("userPrompt",v.userPrompt);
@@ -367,6 +374,8 @@ public final class GuidedStudioActivity extends Activity {
             if(c.age<18)return;
             applyCharacter(c);
             select(scene,j.optInt("scene",0));
+            select(contentLevel,j.optInt("contentLevel",0));
+            select(camera,j.optInt("camera",0));
             select(style,j.optInt("style",0));select(quality,j.optInt("quality",1));
             freeform.setChecked(j.optBoolean("freeformOnly",false));
             anatomyPriority.setChecked(j.optBoolean("anatomyPriority",true));
