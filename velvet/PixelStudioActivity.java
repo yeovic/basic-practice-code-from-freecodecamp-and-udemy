@@ -388,7 +388,10 @@ public final class PixelStudioActivity extends Activity {
         b.setTextSize(12);
         b.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xff69407f));
         b.setOnClickListener(v->callback.run());
-        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(56),1f);
+        boolean horizontal=parent.getOrientation()==LinearLayout.HORIZONTAL;
+        LinearLayout.LayoutParams p=horizontal
+            ? new LinearLayout.LayoutParams(0,dp(56),1f)
+            : new LinearLayout.LayoutParams(-1,dp(56));
         p.rightMargin=dp(4);p.bottomMargin=dp(5);
         parent.addView(b,p);return b;
     }
