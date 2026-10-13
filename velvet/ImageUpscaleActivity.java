@@ -106,6 +106,20 @@ public final class ImageUpscaleActivity extends Activity {
         exportButton.setEnabled(false);
         note(body,"For actual learned AI upscaling, Local Dream also has a separate upscaler page. Its current native model uses an NPU runtime and may not work with a CPU-only checkpoint. This CPU fallback always stays available.");
         setContentView(scroll);
+        // Images shared from Gallery, Files or other drawing apps can arrive
+        // directly in the same integrated Upscale Studio.
+        Intent incoming=getIntent();
+        Uri shared=null;
+        if(Intent.ACTION_SEND.equals(incoming.getAction()) &&
+            incoming.getType()!=null && incoming.getType().startsWith("image/")){
+            if(android.os.Build.VERSION.SDK_INT>=33)
+                shared=incoming.getParcelableExtra(Intent.EXTRA_STREAM,Uri.class);
+            else
+                shared=(Uri)incoming.getParcelableExtra(Intent.EXTRA_STREAM);
+        } else if(Intent.ACTION_VIEW.equals(incoming.getAction())){
+            shared=incoming.getData();
+        }
+        if(shared!=null)loadFromUri(shared);
     }
 
     private void pickImage(){
@@ -148,6 +162,10 @@ public final class ImageUpscaleActivity extends Activity {
                 }
             });
         }else if(code==PICK){
+            loadFromUri(uri);
+        }
+    }
+    private void loadFromUri(Uri uri){
             if(busy)return;
             busy=true;
             runButton.setEnabled(false);
@@ -170,7 +188,6 @@ public final class ImageUpscaleActivity extends Activity {
                     main.post(()->{showError(e);finishBusy();});
                 }
             });
-        }
     }
     private Bitmap decodeSource(Uri uri)throws IOException{
         BitmapFactory.Options bounds=new BitmapFactory.Options();
