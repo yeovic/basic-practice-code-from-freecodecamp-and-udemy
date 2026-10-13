@@ -25,7 +25,8 @@ jobs:
       - name: Run full guided prompt preset matrix regression tests
         run: |
           mkdir -p build/tests
-          javac -d build/tests velvet/PromptBuilder.java velvet/PromptBuilderTest.java
+          javac -d build/tests velvet/QualityTuning.java velvet/LongPromptPlanner.java \
+            velvet/LongPromptRunnerActivity.java velvet/PromptBuilder.java velvet/PromptBuilderTest.java
           java -cp build/tests org.velvetatelier.PromptBuilderTest
       - name: Run standalone image resampler regression tests
         run: |
@@ -35,7 +36,8 @@ jobs:
       - name: Validate advanced quality and prompt planning
         run: |
           mkdir -p build/tests
-          javac -d build/tests velvet/QualityTuning.java velvet/LongPromptPlanner.java velvet/PromptBuilder.java velvet/PromptBuilderTest.java velvet/QualityTuningTest.java velvet/ModelArtifactVerifier.java velvet/ModelArtifactVerifierTest.java
+          javac -d build/tests velvet/QualityTuning.java velvet/LongPromptPlanner.java \
+            velvet/LongPromptRunnerActivity.java velvet/PromptBuilder.java velvet/PromptBuilderTest.java velvet/QualityTuningTest.java velvet/ModelArtifactVerifier.java velvet/ModelArtifactVerifierTest.java
           java -cp build/tests org.velvetatelier.QualityTuningTest
           java -cp build/tests org.velvetatelier.PromptBuilderTest
           java -cp build/tests org.velvetatelier.ModelArtifactVerifierTest
@@ -50,7 +52,8 @@ jobs:
             velvet/PromptBuilder.java velvet/GuidedStudioActivity.java \
             velvet/ImageResampler.java velvet/ImageUpscaleActivity.java \
             velvet/ModelDiagnostics.java velvet/ModelArtifactVerifier.java \
-            velvet/QualityTuning.java velvet/LongPromptPlanner.java
+            velvet/QualityTuning.java velvet/LongPromptPlanner.java \
+            velvet/LongPromptRunnerActivity.java
           echo "Android Java source preflight succeeded."
       - name: Download independently verified adult anime SD1.5 checkpoint
         run: |
@@ -153,6 +156,9 @@ jobs:
                       android:theme="@android:style/Theme.Material.NoActionBar" />
                     <activity android:name="org.velvetatelier.ImageUpscaleActivity"
                       android:exported="false"
+                      android:theme="@android:style/Theme.Material.NoActionBar" />
+                    <activity android:name="org.velvetatelier.LongPromptRunnerActivity"
+                      android:exported="false"
                       android:theme="@android:style/Theme.Material.NoActionBar" />\n''')
           m=m.replace("</application>",provider+hub+"</application>",1)
           manifest.write_text(m)
@@ -172,7 +178,8 @@ jobs:
             velvet/PromptBuilder.java velvet/GuidedStudioActivity.java \
             velvet/ImageResampler.java velvet/ImageUpscaleActivity.java \
             velvet/ModelDiagnostics.java velvet/ModelArtifactVerifier.java \
-            velvet/QualityTuning.java velvet/LongPromptPlanner.java
+            velvet/QualityTuning.java velvet/LongPromptPlanner.java \
+            velvet/LongPromptRunnerActivity.java
           "$TOOLS/d8" --min-api 28 --lib "$PLATFORM" --output build/dex \
             $(find build/java -name '*.class' -print)
           test -f build/dex/classes.dex
@@ -270,7 +277,7 @@ jobs:
             assert 'classes2.dex' in z.namelist()
             import re
             classes=z.read('classes2.dex')
-            for name in (b'PixelStudioActivity',b'PixelEngine',b'VelvetHubActivity',b'GuidedStudioActivity',b'ImageUpscaleActivity',b'ImageResampler',b'QualityTuning',b'LongPromptPlanner',b'ModelDiagnostics',b'ModelArtifactVerifier',b'PromptBuilder',b'IncludedModelProvider',b'ModelStorage'):
+            for name in (b'PixelStudioActivity',b'PixelEngine',b'VelvetHubActivity',b'GuidedStudioActivity',b'ImageUpscaleActivity',b'ImageResampler',b'QualityTuning',b'LongPromptPlanner',b'LongPromptRunnerActivity',b'ModelDiagnostics',b'ModelArtifactVerifier',b'PromptBuilder',b'IncludedModelProvider',b'ModelStorage'):
                 assert name in classes, name
             assert 'lib/arm64-v8a/libstable_diffusion_core.so' in z.namelist()
             assert len([k for k in z.namelist() if k.startswith('assets/included/part-')])>=16
@@ -291,5 +298,5 @@ jobs:
           gh release create velvet-atelier-quality-2-8 \
             dist/Velvet_Atelier_v2_8_Quality_Offline.apk \
             --title "Velvet Atelier 2.8 - Quality Studio" \
-            --notes "Velvet Atelier v2.8 adds face-quality modes, proportional anatomy control, independent size dimensions, editable custom style cards, and explicit multi-pass long-prompt planner. Existing offline image upscaler, Pixel Studio, and model recovery remain. SD1.5 native text context remains fixed at 77 positions per render, but guided multi-pass workflows cover longer prompts sequentially with img2img; this is NOT native CLIP concatenation. Includes bundled Meina model and portable card backup. Android CI/source tests pass; physical phone inference is not verified." \
+            --notes "Velvet Atelier v2.8 adds face-quality modes, proportional anatomy control, independent size dimensions, editable custom style cards, and explicit multi-pass long-prompt planner. Existing offline image upscaler, Pixel Studio, and model recovery remain. SD1.5 native text context remains fixed at 77 positions per pass. The optional experimental automatic runner invokes Local Dream's localhost backend and exact native tokenizer to sequence extra prompt chunks through img2img; it is NOT native CLIP concatenation and requires physical-device testing. Includes bundled Meina model and portable card backup. Android CI/source tests pass; physical phone inference is not verified." \
             --target velvet-atelier-apk
