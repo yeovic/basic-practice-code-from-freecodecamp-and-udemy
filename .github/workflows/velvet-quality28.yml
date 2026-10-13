@@ -25,8 +25,7 @@ jobs:
       - name: Run full guided prompt preset matrix regression tests
         run: |
           mkdir -p build/tests
-          javac -d build/tests velvet/QualityTuning.java velvet/LongPromptPlanner.java \
-            velvet/LongPromptRunnerActivity.java velvet/PromptBuilder.java velvet/PromptBuilderTest.java
+          javac -d build/tests velvet/QualityTuning.java velvet/LongPromptPlanner.java velvet/PromptBuilder.java velvet/PromptBuilderTest.java
           java -cp build/tests org.velvetatelier.PromptBuilderTest
       - name: Run standalone image resampler regression tests
         run: |
@@ -36,8 +35,7 @@ jobs:
       - name: Validate advanced quality and prompt planning
         run: |
           mkdir -p build/tests
-          javac -d build/tests velvet/QualityTuning.java velvet/LongPromptPlanner.java \
-            velvet/LongPromptRunnerActivity.java velvet/PromptBuilder.java velvet/PromptBuilderTest.java velvet/QualityTuningTest.java velvet/ModelArtifactVerifier.java velvet/ModelArtifactVerifierTest.java
+          javac -d build/tests velvet/QualityTuning.java velvet/LongPromptPlanner.java velvet/PromptBuilder.java velvet/PromptBuilderTest.java velvet/QualityTuningTest.java velvet/ModelArtifactVerifier.java velvet/ModelArtifactVerifierTest.java
           java -cp build/tests org.velvetatelier.QualityTuningTest
           java -cp build/tests org.velvetatelier.PromptBuilderTest
           java -cp build/tests org.velvetatelier.ModelArtifactVerifierTest
