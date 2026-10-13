@@ -324,15 +324,47 @@ public final class GuidedStudioActivity extends Activity {
             // Only known fields accepted by Local Dream ParamShare.tryDecode.
             LongPromptPlanner.Plan plan=LongPromptPlanner.plan(recipe.positive);
             if(plan.requiresImg2Img){
+                // Do not hard-block ordinary generation simply because a rich
+                // preset has more tags than native CLIP can read. Let the user
+                // choose an immediate prioritized first pass or a slower
+                // true local multi-pass rendering workflow.
+                final String core=plan.passes.get(0);
+                final LongPromptPlanner.Plan negativePlan=
+                    LongPromptPlanner.plan(recipe.negative);
+                final String coreNegative=negativePlan.passes.get(0);
                 new AlertDialog.Builder(this)
-                    .setTitle("Prompt exceeds one safe text window")
-                    .setMessage("This build's SD1.5 native backend reads only the first "
-                        +"77 CLIP positions. Importing your full prompt directly "
-                        +"would silently lose later instructions. Open the multi-pass "
-                        +"planner to use additional chunks with img2img.")
-                    .setNegativeButton("Cancel",null)
-                    .setPositiveButton("Open planner",(d,w)->showLongPromptPlanner())
-                    .show();
+                    .setTitle("More details than a single CLIP pass")
+                    .setMessage("The important scene, face and proportions now come first. "
+                        +"Generate those immediately with the first prompt segment, "
+                        +"or run all segments through extra local img2img passes. "
+                        +"Any single-pass preview may omit later decorative details.")
+                    .setItems(new String[]{
+                        "Fast render — prioritized core",
+                        "Render full details — automatic multi-pass (experimental)",
+                        "Review all prompt segments"
+                    },(d,which)->{
+                        if(which==0){
+                            try {
+                                JSONObject coreParams=new JSONObject();
+                                coreParams.put("_localdream_params",true);
+                                coreParams.put("v",1);
+                                coreParams.put("prompt",core);
+                                coreParams.put("negative_prompt",coreNegative);
+                                coreParams.put("steps",recipe.steps);
+                                coreParams.put("cfg",recipe.cfg);
+                                coreParams.put("scheduler",recipe.scheduler);
+                                if(recipe.seed>=0 && !preview)
+                                    coreParams.put("seed",recipe.seed);
+                                ClipboardManager manager=(ClipboardManager)
+                                    getSystemService(Context.CLIPBOARD_SERVICE);
+                                manager.setPrimaryClip(ClipData.newPlainText(
+                                    "Velvet Fast Core",coreParams.toString()));
+                                saveDraft();
+                                openGenerator();
+                            }catch(Exception ex){error(ex);}
+                        } else if(which==1)launchLongPromptRunner();
+                        else showLongPromptPlanner();
+                    }).setNegativeButton("Cancel",null).show();
                 return;
             }
             params.put("prompt",recipe.positive);
