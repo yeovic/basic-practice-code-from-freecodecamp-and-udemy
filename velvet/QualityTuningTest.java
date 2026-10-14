@@ -39,9 +39,9 @@ public final class QualityTuningTest {
         ok(stylePriority.positive.indexOf("retro visual novel linework")
                 <stylePriority.positive.indexOf("at a mountain cottage"),
             "Style priority did not survive long prompt");
-        int firstNude=stylePriority.positive.indexOf("(nude:1.3)");
+        int firstNude=stylePriority.positive.indexOf("(nude:1.35)");
         ok(firstNude>=0 &&
-           stylePriority.positive.indexOf("(nude:1.3)",firstNude+1)<0,
+           stylePriority.positive.indexOf("(nude:1.35)",firstNude+1)<0,
             "Duplicate nude conditioning wastes early CLIP tokens");
         p.style=0;
         p.userPrompt="";
