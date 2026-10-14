@@ -50,7 +50,7 @@ jobs:
           java -cp build/upscaleqa org.velvetatelier.FacePatchEngineTest
           javac -d build/upscaleqa velvet/ImageResampler.java velvet/ImageResamplerTest.java
           java -cp build/upscaleqa org.velvetatelier.ImageResamplerTest
-          javac -d build/upscaleqa velvet/LongPromptPlanner.java velvet/PromptImportPolicy.java velvet/PromptImportPolicyTest.java
+          javac -d build/upscaleqa velvet/QualityTuning.java velvet/PromptBuilder.java velvet/LongPromptPlanner.java velvet/PromptImportPolicy.java velvet/PromptImportPolicyTest.java
           java -cp build/upscaleqa org.velvetatelier.PromptImportPolicyTest
           javac -d build/upscaleqa velvet/QualityTuning.java velvet/LongPromptPlanner.java velvet/PromptBuilder.java velvet/PromptBuilderTest.java velvet/QualityTuningTest.java
           java -cp build/upscaleqa org.velvetatelier.QualityTuningTest
