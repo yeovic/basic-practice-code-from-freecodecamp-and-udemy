@@ -137,9 +137,9 @@ public final class PromptBuilder {
         rejectUnderage(settings.userPrompt);
         rejectUnderage(settings.customStylePositive);
         rejectUnderage(settings.customStyleNegative);
-        if(settings.userPrompt.length()>12000 || settings.extraNegative.length()>12000
+        if(settings.userPrompt.length()>65536 || settings.extraNegative.length()>65536
             || settings.customStylePositive.length()>4000 || settings.customStyleNegative.length()>4000)
-            throw new IllegalArgumentException("Prompt exceeds 12,000 characters");
+            throw new IllegalArgumentException("Prompt exceeds the 64 KiB text safety bound; this is NOT the CLIP token limit");
 
         int width=512,height=512,steps=30;
         float cfg=6.5f;
@@ -305,8 +305,9 @@ public final class PromptBuilder {
                          :repair?"Refine: use img2img/inpaint when repairing details. "
                          :"Normal generation. ")
                          +"Suggested "+width+"×"+height+" resolution; select it MANUALLY in Local Dream."
-                         +" Current native SD1.5 conditioning reads 75 useful CLIP tokens per pass;"
-                         +" open Long Prompt Planner for multi-pass img2img overflow.";
+                         +" Long prompts always open the native generator. SD1.5 uses 75"
+                         +" content tokens per single pass; overflow tags may be ignored."
+                         +" Optional multi-pass img2img can process more prompt details.";
 
         return new Recipe(prompt.toString(),negative.toString(),width,height,steps,cfg,
             "euler_a",seed,explanation);
