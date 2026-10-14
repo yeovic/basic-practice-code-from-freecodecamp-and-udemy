@@ -189,7 +189,8 @@ public final class PromptBuilder {
             append(prompt,QualityTuning.proportionPositive(settings.proportionMode));
             if(nude)append(prompt,"(nude:1.35), unclothed adult anatomy");
             if(intimate)append(prompt,twoAdults?
-                "consensual adult intimacy, adult couple":"adult solo intimate scene");
+                "consensual adult sex scene, coherent adult couple":
+                "explicit adult solo scene");
             // Essential body and dimensional settings must precede long user
             // prose. Otherwise SD1.5 truncates the very size controls users
             // selected, allowing exaggerated checkpoint bias to dominate.
