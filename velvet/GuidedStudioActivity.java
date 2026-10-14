@@ -336,14 +336,11 @@ public final class GuidedStudioActivity extends Activity {
             // CLIP tokens. Native SD1.5 may truncate later tags in one pass;
             // the user can separately choose automatic multi-pass if desired.
             // Never force the user to pick a shorter prompt or dismiss a dialog.
-                        boolean warning;
-            try{
-                warning=LongPromptPlanner.plan(recipe.positive).requiresImg2Img;
-            }catch(Exception ignored){
-                warning=true;
-            }
-            params.put("prompt",recipe.positive);
-            params.put("negative_prompt",recipe.negative);
+                        PromptImportPolicy.Delivery delivery=
+                PromptImportPolicy.prepare(recipe.positive,recipe.negative);
+            boolean warning=delivery.longPromptAdvisory;
+            params.put("prompt",delivery.positive);
+            params.put("negative_prompt",delivery.negative);
             params.put("steps",recipe.steps);
             params.put("cfg",recipe.cfg);
             params.put("scheduler",recipe.scheduler);
