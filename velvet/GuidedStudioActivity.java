@@ -298,11 +298,20 @@ public final class GuidedStudioActivity extends Activity {
             PromptBuilder.Recipe recipe=PromptBuilder.build(collect(),preview,repair);
             recipePreview.setText("POSITIVE\n"+recipe.positive);
             negativePreview.setText("NEGATIVE\n"+recipe.negative);
+            // The optional planner has a deliberate multi-pass cap.
+            // Never turn that cap into a generation-blocking preset error.
+            String plannerAdvice;
+            try{
+                plannerAdvice="Estimated passes: "+
+                    LongPromptPlanner.plan(recipe.positive).passes.size()+
+                    " (approximate, BPE may differ).";
+            }catch(Exception ignored){
+                plannerAdvice="Long prompt accepted. Additional multi-pass rendering "+
+                    "may require fewer details; ordinary generation still works.";
+            }
             configPreview.setText("STEPS "+recipe.steps+" | CFG "+recipe.cfg+
                 " | "+recipe.width+"×"+recipe.height+" | "+recipe.scheduler+
-                "\n"+recipe.explanation
-                +"\nEstimated long-prompt passes: "+LongPromptPlanner.plan(recipe.positive).passes.size()
-                +" (model BPE count may differ).");
+                "\\n"+recipe.explanation+"\\n"+plannerAdvice);
             return recipe;
         } catch(Exception ex) {
             recipePreview.setText("Preset error: "+ex.getMessage());
@@ -327,13 +336,12 @@ public final class GuidedStudioActivity extends Activity {
             // CLIP tokens. Native SD1.5 may truncate later tags in one pass;
             // the user can separately choose automatic multi-pass if desired.
             // Never force the user to pick a shorter prompt or dismiss a dialog.
-            LongPromptPlanner.Plan plan=null;
-            try{plan=LongPromptPlanner.plan(recipe.positive);}
-            catch(IllegalArgumentException ignored){
-                // Native generator can still try an arbitrary long freeform
-                // prompt. Only the optional multi-pass planner is bounded.
+                        boolean warning;
+            try{
+                warning=LongPromptPlanner.plan(recipe.positive).requiresImg2Img;
+            }catch(Exception ignored){
+                warning=true;
             }
-            final boolean warning=plan!=null && plan.requiresImg2Img;
             params.put("prompt",recipe.positive);
             params.put("negative_prompt",recipe.negative);
             params.put("steps",recipe.steps);
