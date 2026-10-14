@@ -1,4 +1,4 @@
-name: Velvet v3.4 Unblocked Prompts QA
+name: Velvet v3.5 CLIP Priority QA
 on:
   push:
     branches: [velvet-atelier-apk]
@@ -9,6 +9,8 @@ on:
       - 'velvet/ImageUpscaleActivity.java'
       - 'velvet/VelvetHubActivity.java'
       - 'velvet/GuidedStudioActivity.java'
+      - 'velvet/PromptBuilder.java'
+      - 'velvet/PromptBuilderTest.java'
       - 'velvet/QualityTuning.java'
       - 'velvet/QualityTuningTest.java'
       - 'velvet/LongPromptPlanner.java'
