@@ -1,0 +1,22 @@
+name: Velvet Native Long-Context Prototype QA
+on:
+  push:
+    branches: [velvet-atelier-apk]
+    paths:
+      - 'velvet/native/ClipChunker.hpp'
+      - 'velvet/native/ClipChunkerTest.cpp'
+      - '.github/workflows/velvet-native-context-proto.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile experimental CLIP chunk-packer without Qualcomm SDK
+        run: |
+          g++ -std=c++17 -O2 -Wall -Wextra -pedantic -Werror \
+            velvet/native/ClipChunkerTest.cpp -o /tmp/velvet-clip-chunk-test
+          /tmp/velvet-clip-chunk-test
+          echo 'PASS: host-native CLIP chunking prototype ONLY. Not a rebuilt Android MNN inference engine.'
