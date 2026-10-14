@@ -28,6 +28,23 @@ public final class QualityTuningTest {
         ok(detailed.positive.contains("slim shaft"),"Girth control missing");
         ok(detailed.positive.contains("small testicles"),"Separate testicles missing");
         ok(!detailed.positive.contains("(small penis:1.2)"),"Legacy override creates conflict");
+        p.userPrompt="at a mountain cottage with silver moonlight and a waterfall";
+        PromptBuilder.Recipe prioritized=PromptBuilder.build(p,false,false);
+        int firstPrompt=prioritized.positive.indexOf("at a mountain cottage");
+        int lengthPrompt=prioritized.positive.indexOf("very short penis");
+        ok(lengthPrompt>0 && lengthPrompt<firstPrompt,
+            "Size settings were delayed past optional scene detail");
+        p.style=4;
+        PromptBuilder.Recipe stylePriority=PromptBuilder.build(p,false,false);
+        ok(stylePriority.positive.indexOf("retro visual novel linework")
+                <stylePriority.positive.indexOf("at a mountain cottage"),
+            "Style priority did not survive long prompt");
+        int firstNude=stylePriority.positive.indexOf("(nude:1.3)");
+        ok(firstNude>=0 &&
+           stylePriority.positive.indexOf("(nude:1.3)",firstNude+1)<0,
+            "Duplicate nude conditioning wastes early CLIP tokens");
+        p.style=0;
+        p.userPrompt="";
         p.character.genitals=1;
         PromptBuilder.Recipe absent=PromptBuilder.build(p,false,false);
         ok(!absent.positive.contains("very short penis"),"Dimensional tags leaked into non-penis body");
