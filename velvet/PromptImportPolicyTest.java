@@ -18,6 +18,13 @@ public final class PromptImportPolicyTest {
         ok(source.equals(longOne.positive),"1200 detail tags were removed");
         ok(longOne.longPromptAdvisory,"Long prompt not warned");
         ok(source.endsWith("original_attribute_1199"),"Late instructions dropped");
+        PromptBuilder.Settings nativeSettings=new PromptBuilder.Settings();
+        nativeSettings.freeformOnly=true;
+        nativeSettings.userPrompt=source;
+        PromptBuilder.Recipe nativeRecipe=PromptBuilder.build(nativeSettings,false,false);
+        ok(nativeRecipe.positive.equals(source),"Guided build still rejects or truncates >12k text");
+        ok(PromptImportPolicy.prepare(nativeRecipe.positive,nativeRecipe.negative)
+            .positive.equals(source),"Native handoff lost guided tags");
         String nonAscii="성인 캐릭터, 夜景, фантазия, "+source;
         ok(PromptImportPolicy.prepare(nonAscii,"").positive.equals(nonAscii),
             "Unicode prompt changed");
