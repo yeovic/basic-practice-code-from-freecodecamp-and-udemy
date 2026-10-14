@@ -187,11 +187,12 @@ public final class PromptBuilder {
             append(prompt,QualityTuning.facePositive(settings.faceMode,
                 settings.scene<=1 || settings.camera==1,repair));
             append(prompt,QualityTuning.proportionPositive(settings.proportionMode));
-            if(nude)append(prompt,"(nude:1.3), unclothed, adult anatomy");
-            if(intimate){
-                append(prompt,twoAdults?"consensual adult intimacy, adult couple":"adult solo intimate scene");
-            }
-            append(prompt,settings.userPrompt);
+            if(nude)append(prompt,"(nude:1.3), unclothed adult anatomy");
+            if(intimate)append(prompt,twoAdults?
+                "consensual adult intimacy, adult couple":"adult solo intimate scene");
+            // Essential body and dimensional settings must precede long user
+            // prose. Otherwise SD1.5 truncates the very size controls users
+            // selected, allowing exaggerated checkpoint bias to dominate.
             append(prompt,bodyTags(c));
             if (hasVisiblePenis(c)) {
                 if(nude){
@@ -215,19 +216,20 @@ public final class PromptBuilder {
                 if(!nude && c.bulge==2)append(prompt,"noticeable clothing bulge");
             }
             append(prompt,expressionTags(c.expression));
+            // Style is structural conditioning, not a decoration: placing it
+            // after clothing/hair/pose meant it was frequently discarded.
+            if(settings.style==1)append(prompt,"soft painterly anime rendering, subtle shading");
+            if(settings.style==2)append(prompt,"crisp lineart, cel shading");
+            if(settings.style==3 || settings.scene==7)append(prompt,
+                "pixel art, retro game palette, pixelated outline");
+            if(settings.style==4)append(prompt,QualityTuning.boukokuApproximation());
+            if(settings.style==5)append(prompt,settings.customStylePositive);
+            append(prompt,settings.userPrompt);
             append(prompt,QualityTuning.complexityPositive(settings.complexity));
-            // Exposure controls must not be contradicted by saved outfit
-            // descriptions. Otherwise the model typically draws clothing.
-            if(nude) {
-                append(prompt,"(nude:1.35), (naked:1.25), unclothed, visible skin, no outfit, uncensored adult anatomy");
-            }
-            if(intimate) {
-                if(twoAdults) {
-                    append(prompt,"consensual adult sex scene, physically intimate adult couple, close interaction, coherent shared pose");
-                } else {
-                    append(prompt,"explicit adult solo scene, sexual context, clear adult anatomy");
-                }
-            }
+            // Avoid repeating essentially the same exposure tags twice.
+            // Context positions are far more useful for desired body geometry.
+            if(intimate && twoAdults)
+                append(prompt,"coherent shared pose, clearly separated limbs");
             if(settings.camera==1)framing="face focus, portrait";
             if(settings.camera==2)framing="waist up, upper body";
             if(settings.camera==3)framing="full figure in frame, clearly visible anatomy";
@@ -237,11 +239,7 @@ public final class PromptBuilder {
             if(!c.eyes.trim().isEmpty())append(prompt,c.eyes);
             if(!nude)append(prompt,c.clothing);
             append(prompt,c.traits);
-            if(settings.style==1)append(prompt,"soft painterly anime rendering, subtle shading");
-            if(settings.style==2)append(prompt,"clean crisp lineart, high detail, cel shading");
-            if(settings.style==3 || settings.scene==7)append(prompt,"pixel art aesthetic, retro game style, pixelated outline, limited color palette");
-            if(settings.style==4)append(prompt,QualityTuning.boukokuApproximation());
-            if(settings.style==5)append(prompt,settings.customStylePositive);
+            // Style is applied above, before optional scene decoration.
             if(settings.quality!=2)append(prompt,"balanced body proportions, consistent eyes");
             if(repair)append(prompt,"clean anatomy, consistent body structure, clear limbs, detailed face, precise linework");
         }
