@@ -322,51 +322,18 @@ public final class GuidedStudioActivity extends Activity {
             params.put("_localdream_params",true);
             params.put("v",1);
             // Only known fields accepted by Local Dream ParamShare.tryDecode.
-            LongPromptPlanner.Plan plan=LongPromptPlanner.plan(recipe.positive);
-            if(plan.requiresImg2Img){
-                // Do not hard-block ordinary generation simply because a rich
-                // preset has more tags than native CLIP can read. Let the user
-                // choose an immediate prioritized first pass or a slower
-                // true local multi-pass rendering workflow.
-                final String core=plan.passes.get(0);
-                final LongPromptPlanner.Plan negativePlan=
-                    LongPromptPlanner.plan(recipe.negative);
-                final String coreNegative=negativePlan.passes.get(0);
-                new AlertDialog.Builder(this)
-                    .setTitle("More details than a single CLIP pass")
-                    .setMessage("The important scene, face and proportions now come first. "
-                        +"Generate those immediately with the first prompt segment, "
-                        +"or run all segments through extra local img2img passes. "
-                        +"Any single-pass preview may omit later decorative details.")
-                    .setItems(new String[]{
-                        "Fast render — prioritized core",
-                        "Render full details — automatic multi-pass (experimental)",
-                        "Review all prompt segments"
-                    },(d,which)->{
-                        if(which==0){
-                            try {
-                                JSONObject coreParams=new JSONObject();
-                                coreParams.put("_localdream_params",true);
-                                coreParams.put("v",1);
-                                coreParams.put("prompt",core);
-                                coreParams.put("negative_prompt",coreNegative);
-                                coreParams.put("steps",recipe.steps);
-                                coreParams.put("cfg",recipe.cfg);
-                                coreParams.put("scheduler",recipe.scheduler);
-                                if(recipe.seed>=0 && !preview)
-                                    coreParams.put("seed",recipe.seed);
-                                ClipboardManager manager=(ClipboardManager)
-                                    getSystemService(Context.CLIPBOARD_SERVICE);
-                                manager.setPrimaryClip(ClipData.newPlainText(
-                                    "Velvet Fast Core",coreParams.toString()));
-                                saveDraft();
-                                openGenerator();
-                            }catch(Exception ex){error(ex);}
-                        } else if(which==1)launchLongPromptRunner();
-                        else showLongPromptPlanner();
-                    }).setNegativeButton("Cancel",null).show();
-                return;
+            // Advisory only. Always deliver the COMPLETE prompt to Local
+            // Dream and immediately open the generator, even if >77 native
+            // CLIP tokens. Native SD1.5 may truncate later tags in one pass;
+            // the user can separately choose automatic multi-pass if desired.
+            // Never force the user to pick a shorter prompt or dismiss a dialog.
+            LongPromptPlanner.Plan plan=null;
+            try{plan=LongPromptPlanner.plan(recipe.positive);}
+            catch(IllegalArgumentException ignored){
+                // Native generator can still try an arbitrary long freeform
+                // prompt. Only the optional multi-pass planner is bounded.
             }
+            final boolean warning=plan!=null && plan.requiresImg2Img;
             params.put("prompt",recipe.positive);
             params.put("negative_prompt",recipe.negative);
             params.put("steps",recipe.steps);
@@ -378,17 +345,15 @@ public final class GuidedStudioActivity extends Activity {
             manager.setPrimaryClip(ClipData.newPlainText("Velvet Guided Params",
                 params.toString()));
             saveDraft();
-            String message=preview
-                ? "The generator will offer Import Parameters. Apply them, set batch count to FOUR, then start generation. Four-preview automation is not currently native."
-                : repair
-                  ? "Apply the imported high-quality parameters, and use the generator's existing img2img/inpaint tools for actual spatial repairs. Same-seed text rerender alone is NOT inpainting."
-                  : "Choose the converted MeinaHentaiV21 model, accept Import Parameters, then Generate. The model must say READY in the home screen.";
-            new AlertDialog.Builder(this)
-                .setTitle(preview?"Preview ×4":repair?"Refine settings":"Guided generation")
-                .setMessage(message)
-                .setNegativeButton("Not now",null)
-                .setPositiveButton("Open AI Generator",(d,w)->openGenerator())
-                .show();
+            if(warning){
+                Toast.makeText(this,
+                    "Long prompt kept in full. Native SD1.5 may ignore tags after 77 tokens; multi-pass is optional.",
+                    Toast.LENGTH_LONG).show();
+            }
+            if(preview)Toast.makeText(this,"Set batch count to 4 in the generator.",Toast.LENGTH_LONG).show();
+            if(repair)Toast.makeText(this,"For spatial repairs, use the generator's img2img/inpaint tools.",Toast.LENGTH_LONG).show();
+            // Direct transition: no blocking modal, even with long prompts.
+            openGenerator();
         } catch(Exception e){error(e);}
     }
     private void openGenerator(){
