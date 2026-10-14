@@ -1,4 +1,4 @@
-name: Velvet v3.3 Generation Benchmarks QA
+name: Velvet v3.4 Unblocked Prompts QA
 on:
   push:
     branches: [velvet-atelier-apk]
@@ -21,6 +21,8 @@ on:
       - 'velvet/GenerationPassPolicyTest.java'
       - 'velvet/RegionSelectionView.java'
       - 'velvet/LocalPerformanceLog.java'
+      - 'velvet/PromptImportPolicy.java'
+      - 'velvet/PromptImportPolicyTest.java'
       - 'velvet/IncludedModelProvider.java'
       - 'velvet/ModelDiagnostics.java'
       - 'velvet/ModelArtifactVerifier.java'
@@ -48,6 +50,8 @@ jobs:
           java -cp build/upscaleqa org.velvetatelier.FacePatchEngineTest
           javac -d build/upscaleqa velvet/ImageResampler.java velvet/ImageResamplerTest.java
           java -cp build/upscaleqa org.velvetatelier.ImageResamplerTest
+          javac -d build/upscaleqa velvet/LongPromptPlanner.java velvet/PromptImportPolicy.java velvet/PromptImportPolicyTest.java
+          java -cp build/upscaleqa org.velvetatelier.PromptImportPolicyTest
           javac -d build/upscaleqa velvet/QualityTuning.java velvet/LongPromptPlanner.java velvet/PromptBuilder.java velvet/PromptBuilderTest.java velvet/QualityTuningTest.java
           java -cp build/upscaleqa org.velvetatelier.QualityTuningTest
           java -cp build/upscaleqa org.velvetatelier.PromptBuilderTest
@@ -64,6 +68,7 @@ jobs:
             velvet/FaceRepairStudioActivity.java velvet/FacePatchEngine.java \
             velvet/RegionSelectionView.java velvet/RepairPromptTemplates.java \
             velvet/GenerationPassPolicy.java velvet/LocalPerformanceLog.java \
+            velvet/PromptImportPolicy.java \
             velvet/ImageResampler.java velvet/ImageUpscaleActivity.java \
             velvet/ModelDiagnostics.java velvet/ModelArtifactVerifier.java
-          echo 'PASS: v3.3 memory-aware repair, prompt flow, local telemetry and Android API compile'
+          echo 'PASS: v3.4 long-prompt nonblocking GUI, native import, repair and Android compile'
