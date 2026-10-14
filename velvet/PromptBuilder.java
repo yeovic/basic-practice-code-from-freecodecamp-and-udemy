@@ -187,7 +187,7 @@ public final class PromptBuilder {
             append(prompt,QualityTuning.facePositive(settings.faceMode,
                 settings.scene<=1 || settings.camera==1,repair));
             append(prompt,QualityTuning.proportionPositive(settings.proportionMode));
-            if(nude)append(prompt,"(nude:1.3), unclothed adult anatomy");
+            if(nude)append(prompt,"(nude:1.35), unclothed adult anatomy");
             if(intimate)append(prompt,twoAdults?
                 "consensual adult intimacy, adult couple":"adult solo intimate scene");
             // Essential body and dimensional settings must precede long user
