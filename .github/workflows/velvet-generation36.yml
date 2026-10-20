@@ -1,0 +1,375 @@
+name: Build Velvet Atelier Studio v3.6 Generation Stability
+on:
+  push:
+    branches: [velvet-atelier-apk]
+    paths:
+      - '.github/workflows/velvet-generation36.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Run dependency-free GIF exporter regression tests
+        run: |
+          mkdir -p build/tests
+          javac -d build/tests velvet/GifWriter.java velvet/GifWriterTest.java
+          java -Djava.awt.headless=true -cp build/tests org.velvetatelier.GifWriterTest
+      - name: Run full guided prompt preset matrix regression tests
+        run: |
+          mkdir -p build/tests
+          javac -d build/tests velvet/QualityTuning.java velvet/LongPromptPlanner.java velvet/PromptBuilder.java velvet/PromptBuilderTest.java
+          java -cp build/tests org.velvetatelier.PromptBuilderTest
+      - name: Run standalone image resampler regression tests
+        run: |
+          mkdir -p build/tests
+          javac -d build/tests velvet/ImageResampler.java velvet/ImageResamplerTest.java
+          java -cp build/tests org.velvetatelier.ImageResamplerTest
+      - name: Validate advanced quality and prompt planning
+        run: |
+          mkdir -p build/tests
+          javac -d build/tests velvet/QualityTuning.java velvet/LongPromptPlanner.java velvet/PromptBuilder.java velvet/PromptBuilderTest.java velvet/QualityTuningTest.java velvet/ModelArtifactVerifier.java velvet/ModelArtifactVerifierTest.java
+          java -cp build/tests org.velvetatelier.QualityTuningTest
+          java -cp build/tests org.velvetatelier.PromptBuilderTest
+          java -cp build/tests org.velvetatelier.ModelArtifactVerifierTest
+      - name: Verify localized generative repair and blending
+        run: |
+          mkdir -p build/tests
+          javac -d build/tests velvet/FacePatchEngine.java velvet/FacePatchEngineTest.java velvet/RepairPromptTemplates.java
+          javac -d build/tests velvet/GenerationPassPolicy.java velvet/GenerationPassPolicyTest.java
+          java -cp build/tests org.velvetatelier.GenerationPassPolicyTest
+          java -cp build/tests org.velvetatelier.FacePatchEngineTest
+      - name: Test unconditional full prompt import (including 1200 tags)
+        run: |
+          mkdir -p build/tests
+          javac -d build/tests velvet/QualityTuning.java velvet/LongPromptPlanner.java velvet/PromptBuilder.java velvet/PromptImportPolicy.java velvet/PromptImportPolicyTest.java
+          java -cp build/tests org.velvetatelier.PromptImportPolicyTest
+      - name: Verify native CLIP budget and image dimensions
+        run: |
+          mkdir -p build/tests
+          javac -d build/tests velvet/NativeTokenBudget.java velvet/NativeTokenBudgetTest.java \
+            velvet/GenerationDimensions.java velvet/GenerationDimensionsTest.java
+          java -cp build/tests org.velvetatelier.NativeTokenBudgetTest
+          java -cp build/tests org.velvetatelier.GenerationDimensionsTest
+      - name: Preflight compile Android UI and model installer
+        run: |
+          mkdir -p build/preflight
+          PLATFORM="$ANDROID_HOME/platforms/android-35/android.jar"
+          javac -source 8 -target 8 -cp "$PLATFORM" -d build/preflight \
+            velvet/ModelStorage.java velvet/IncludedModelProvider.java \
+            velvet/PixelStudioActivity.java velvet/VelvetHubActivity.java \
+            velvet/PixelEngine.java velvet/GifWriter.java \
+            velvet/PromptBuilder.java velvet/GuidedStudioActivity.java \
+            velvet/ImageResampler.java velvet/ImageUpscaleActivity.java \
+            velvet/ModelDiagnostics.java velvet/ModelArtifactVerifier.java \
+            velvet/QualityTuning.java velvet/LongPromptPlanner.java \
+            velvet/PromptImportPolicy.java \
+            velvet/LongPromptRunnerActivity.java \
+            velvet/NativeTokenBudget.java velvet/GenerationDimensions.java \
+            velvet/FaceRepairStudioActivity.java velvet/FacePatchEngine.java \
+            velvet/RegionSelectionView.java velvet/GenerationPassPolicy.java \
+            velvet/LocalPerformanceLog.java \
+            velvet/RepairPromptTemplates.java
+          echo "Android Java source preflight succeeded."
+      - name: Download independently verified adult anime SD1.5 checkpoint
+        run: |
+          mkdir -p build dist
+          curl -fL --retry 4 --retry-all-errors --connect-timeout 35 --max-time 1300 \
+            "https://huggingface.co/sinkinai/MeinaHentai/resolve/main/meinahentai_v21.safetensors?download=true" \
+            -o build/meinahentai_v21.safetensors
+          echo 'deb40a068adf41aa2466dc8e76b516216af1c1afe721dfd23fc2c1108b4d152f  build/meinahentai_v21.safetensors' | sha256sum -c -
+          stat -c "Verified checkpoint size: %s bytes" build/meinahentai_v21.safetensors
+      - name: Obtain proven working Android local inference engine
+        run: |
+          curl -fL --retry 4 "https://github.com/xororz/local-dream/releases/download/v2.8.1/LocalDream_armv8a_2.8.1.apk" -o build/base.apk
+          echo "c8ba61769564ed13bcfb7e13cc48bb3bf6e3f9fd26db132a0bb2d6aa00a31edb  build/base.apk" | sha256sum -c -
+          curl -fL --retry 4 "https://github.com/iBotPeaches/Apktool/releases/download/v3.0.3/apktool_3.0.3.jar" -o build/apktool.jar
+          java -Xmx3g -jar build/apktool.jar d --force build/base.apk -o build/decoded
+      - name: Independent package identity, native model setup, original credits
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          from xml.sax.saxutils import escape
+          root=Path('build/decoded')
+          strings=root/'res/values/strings.xml'
+          s=strings.read_text()
+          credits=("Velvet Atelier is a noncommercial modified edition of Local Dream by xororz and contributors, "
+                   "https://github.com/xororz/local-dream . CC BY-NC 4.0 "
+                   "https://creativecommons.org/licenses/by-nc/4.0/ . "
+                   "Additional bundled anime model: MeinaHentai V2.1 by Meina, "
+                   "https://huggingface.co/Meina/MeinaHentai . "
+                   "Model license: CreativeML Open RAIL-M. "
+                   "Changes: product branding, microSD preference for model files, on-device model bootstrap, launcher icon and UI strings. "
+                   "Upstream engine and dependencies remain credited.")
+          replacements={
+            "app_name":"Velvet Atelier Studio v3.5",
+            "about_app":credits,
+            "image_prompt":"Adult anime art prompt",
+            "negative_prompt":"Exclusions",
+            "generate_image":"Generate locally",
+            "available_models":"Offline art models",
+            "no_results_hint":"An adult-anime model is included. First launch requires offline setup.",
+            "cpu_models":"CPU / GPU local models",
+            "model_downloaded":"Installed",
+          }
+          for k,v in replacements.items():
+            pat=r'(<string\s+name="'+re.escape(k)+r'"(?:\s+[^>]*)?>).*?(</string>)'
+            s,count=re.subn(pat,lambda m:m.group(1)+escape(v)+m.group(2),s,count=1,flags=re.S)
+            if k=="app_name" and count != 1: raise ValueError("App-name string not found")
+          pat=r'(<string\s+name="must_read"[^>]*>)(.*?)(</string>)'
+          s=re.sub(pat,lambda m:m.group(1)+m.group(2)+r'\n\n'+escape(credits)+m.group(3),s,count=1,flags=re.S)
+          strings.write_text(s)
+          icon=root/'res/drawable/ic_launcher_foreground.xml'
+          icon.write_text('''<?xml version="1.0" encoding="utf-8"?>
+          <vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp"
+            android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+            <path android:fillColor="#21172B" android:pathData="M0,0h108v108h-108z"/>
+            <path android:fillColor="#ED9EDC" android:pathData="M54,14C33,14 16,31 16,54C16,77 33,94 54,94C40,87 32,73 32,54C32,35 40,21 54,14Z"/>
+            <path android:fillColor="#BF83EC" android:pathData="M60,18L66,42L90,48L66,54L60,78L54,54L30,48L54,42Z"/>
+            <path android:fillColor="#FFFFFF" android:pathData="M83,18L86,27L95,30L86,33L83,42L80,33L71,30L80,27Z"/>
+          </vector>''')
+          manifest=root/'AndroidManifest.xml'
+          m=manifest.read_text()
+          original="io.github.xororz.localdream"
+          package=re.search(r'\bpackage="([^"]+)"',m)
+          assert package is not None, "Cannot identify manifest package"
+          assert package.group(1)==original,package.group(1)
+          m=m[:package.start(1)]+"org.velvetatelier.studio"+m[package.end(1):]
+          m,n=re.subn(r'android:versionCode="[^"]+"','android:versionCode="360"',m,count=1)
+          if n==0:
+            m=m.replace('<manifest ','<manifest android:versionCode="360" ',1)
+          m,n=re.subn(r'android:versionName="[^"]+"','android:versionName="3.6.0"',m,count=1)
+          if n==0:
+            m=m.replace('<manifest ','<manifest android:versionName="3.6.0" ',1)
+          # Some Apktool variants keep versionInfo only in apktool.yml.
+          apktool_config=root/'apktool.yml'
+          if apktool_config.is_file():
+            config_text=apktool_config.read_text()
+            config_text=re.sub(r'(?m)^(\s*versionCode:\s*)[^\n]+',r'\g<1>360',config_text,count=1)
+            config_text=re.sub(r'(?m)^(\s*versionName:\s*)[^\n]+',r'\g<1>3.6.0',config_text,count=1)
+            apktool_config.write_text(config_text)
+
+          m=m.replace('<manifest ', '<manifest android:installLocation="preferExternal" ',1)
+          m=re.sub(r'android:name="\.([^"]+)"',lambda mt:'android:name="'+original+'.'+mt.group(1)+'"',m)
+          # The Pixel Studio hub becomes the sole launcher while the original
+          # model generation MainActivity remains inside the APK and is opened
+          # explicitly from the new home screen.
+          activity_pattern=(r'(<activity\b[^>]*android:name="'
+                            +re.escape(original)+r'\.MainActivity"[^>]*>)'
+                            r'([\s\S]*?)(</activity>)')
+          def strip_old_launcher(mt):
+            inner=re.sub(
+               r'<intent-filter>[\s\S]*?android.intent.category.LAUNCHER'
+               r'[\s\S]*?</intent-filter>', '',mt.group(2),count=1)
+            if inner==mt.group(2):raise RuntimeError("Original app launcher not found")
+            return mt.group(1)+inner+mt.group(3)
+          m,num=re.subn(activity_pattern,strip_old_launcher,m,count=1)
+          if num!=1:raise RuntimeError('Original MainActivity not located in manifest')
+          assert '</application>' in m
+          provider=('        <provider android:name="org.velvetatelier.IncludedModelProvider" '
+                    'android:authorities="org.velvetatelier.studio.modelbootstrap" '
+                    'android:exported="false" android:initOrder="100" />\n')
+          hub=('''        <activity android:name="org.velvetatelier.VelvetHubActivity"
+                    android:exported="true" android:label="Velvet Atelier"
+                    android:theme="@android:style/Theme.Material.NoActionBar">
+                      <intent-filter>
+                        <action android:name="android.intent.action.MAIN" />
+                        <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                    </activity>
+                    <activity android:name="org.velvetatelier.PixelStudioActivity"
+                      android:exported="false"
+                      android:theme="@android:style/Theme.Material.NoActionBar" />
+                    <activity android:name="org.velvetatelier.GuidedStudioActivity"
+                      android:exported="false"
+                      android:theme="@android:style/Theme.Material.NoActionBar" />
+                    <activity android:name="org.velvetatelier.ImageUpscaleActivity"
+                      android:exported="true"
+                      android:theme="@android:style/Theme.Material.NoActionBar">
+                      <intent-filter>
+                        <action android:name="android.intent.action.SEND" />
+                        <category android:name="android.intent.category.DEFAULT" />
+                        <data android:mimeType="image/*" />
+                      </intent-filter>
+                      <intent-filter>
+                        <action android:name="android.intent.action.VIEW" />
+                        <category android:name="android.intent.category.DEFAULT" />
+                        <data android:mimeType="image/*" />
+                      </intent-filter>
+                    </activity>
+                    <activity android:name="org.velvetatelier.LongPromptRunnerActivity"
+                      android:exported="false"
+                      android:theme="@android:style/Theme.Material.NoActionBar" />
+                    <activity android:name="org.velvetatelier.FaceRepairStudioActivity"
+                      android:exported="false"
+                      android:theme="@android:style/Theme.Material.NoActionBar" />\n''')
+          m=m.replace("</application>",provider+hub+"</application>",1)
+          manifest.write_text(m)
+          license_path=root/'assets/VELVET_ATELIER_ATTRIBUTION.txt'
+          license_path.write_text(credits+'\n',encoding='utf-8')
+          # Native converter has built-in clip_skip_2 base files; first-run installer handles that step offline.
+          for p in ["cvtbase/unet.mnn","cvtbase/clip_skip_2.mnn","cvtbase/vae_decoder.mnn"]:
+            assert (root/'assets'/p).is_file(),p
+          PY
+          mkdir -p build/java build/dex
+          PLATFORM="$ANDROID_HOME/platforms/android-35/android.jar"
+          TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          javac -source 8 -target 8 -cp "$PLATFORM" -d build/java \
+            velvet/ModelStorage.java velvet/IncludedModelProvider.java \
+            velvet/VelvetHubActivity.java velvet/PixelStudioActivity.java \
+            velvet/PixelEngine.java velvet/GifWriter.java \
+            velvet/PromptBuilder.java velvet/GuidedStudioActivity.java \
+            velvet/ImageResampler.java velvet/ImageUpscaleActivity.java \
+            velvet/ModelDiagnostics.java velvet/ModelArtifactVerifier.java \
+            velvet/QualityTuning.java velvet/LongPromptPlanner.java \
+            velvet/PromptImportPolicy.java \
+            velvet/LongPromptRunnerActivity.java \
+            velvet/NativeTokenBudget.java velvet/GenerationDimensions.java \
+            velvet/FaceRepairStudioActivity.java velvet/FacePatchEngine.java \
+            velvet/RegionSelectionView.java velvet/GenerationPassPolicy.java \
+            velvet/LocalPerformanceLog.java \
+            velvet/RepairPromptTemplates.java
+          "$TOOLS/d8" --min-api 28 --lib "$PLATFORM" --output build/dex \
+            $(find build/java -name '*.class' -print)
+          test -f build/dex/classes.dex
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          root=Path('build/decoded')
+          # Release build has R8-obfuscated Kotlin class names: patch all exact
+          # file-root acquisitions immediately associated with the "models"
+          # directory string. This preserves the surrounding code and registers.
+          count_all=0
+          affected=[]
+          pattern=re.compile(
+              r'(invoke-virtual \{(?P<context>[vp]\d+)\}, '
+              r'Landroid/content/Context;->getFilesDir\(\)Ljava/io/File;)'
+              r'(?P<tail>[\s\S]{0,330}?)'
+              r'(const-string [vp]\d+, "models")'
+          )
+          for p in root.glob('smali*/**/*.smali'):
+            txt=p.read_text()
+            def swap(m):
+              global count_all
+              if '.end method' in m.group('tail'): return m.group(0)
+              if 'move-result-object' not in m.group('tail'): return m.group(0)
+              count_all+=1
+              newcall=('invoke-static {'+m.group('context')+'}, '
+                       'Lorg/velvetatelier/ModelStorage;->preferredBaseDir'
+                       '(Landroid/content/Context;)Ljava/io/File;')
+              return newcall + m.group('tail') + m.group(4)
+            upd=pattern.sub(swap,txt)
+            if upd != txt:
+              p.write_text(upd)
+              affected.append(str(p))
+          print('Storage-path invocation patches:',count_all)
+          print('Classes touched:',affected)
+          # Source version contains one central helper plus inlined model paths
+          # after R8 optimization. Reject builds that do not patch multiple paths.
+          if count_all < 5:
+            raise RuntimeError('Insufficient confirmed model-path patches: '+str(count_all))
+          PY
+      - name: Build and align Android package before inserting model data
+        run: |
+          java -Xmx3g -jar build/apktool.jar b build/decoded -o build/unsigned.apk
+          python3 - <<'PY'
+          from zipfile import ZipFile, ZIP_DEFLATED
+          with ZipFile('build/unsigned.apk','a',compression=ZIP_DEFLATED) as z:
+            if 'classes2.dex' in z.namelist():raise RuntimeError('Unexpected existing classes2.dex')
+            z.write('build/dex/classes.dex','classes2.dex',compress_type=ZIP_DEFLATED)
+          PY
+          TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          "$TOOLS/zipalign" -p -f 4 build/unsigned.apk build/aligned.apk
+      - name: Embed full model inside APK as streamed 128 MiB assets
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import zipfile,hashlib
+          # Python zipfile defaults to a 2 GiB safety threshold even though ZIP32 permits 4 GiB.
+          # Use valid unsigned ZIP32 offsets so older Android package parsers stay compatible.
+          zipfile.ZIP64_LIMIT = 0xFFFFFFFF - 65536
+          path=Path('build/aligned.apk')
+          model=Path('build/meinahentai_v21.safetensors')
+          CHUNK=128*1024*1024
+          total=model.stat().st_size
+          assert total>2_000_000_000 and total<2_500_000_000,total
+          with zipfile.ZipFile(path,'a',compression=zipfile.ZIP_DEFLATED,compresslevel=6,allowZip64=False) as apk:
+            with model.open('rb') as inp:
+              i=0
+              while True:
+                data=inp.read(CHUNK)
+                if not data:break
+                apk.writestr('assets/included/part-%03d.bin'%i,data,compress_type=zipfile.ZIP_DEFLATED,compresslevel=6)
+                print('Included chunk',i,len(data),flush=True)
+                i+=1
+          with zipfile.ZipFile(path) as apk:
+            parts=sorted(n for n in apk.namelist() if n.startswith('assets/included/part-'))
+            assert len(parts)>=16 and apk.getinfo('classes2.dex').file_size>0
+            assert sum(apk.getinfo(n).file_size for n in parts)==total
+            print('Verified embedded model',len(parts),'pieces, total',total)
+          PY
+          # All APK entries remain ZIP32; required by older Android installers.
+      - name: Sign, inspect identity, and upload installable offline APK
+        id: sign
+        env:
+          VELVET_SIGNING_KEYSTORE_B64: ${{ secrets.VELVET_SIGNING_KEYSTORE_B64 }}
+          VELVET_SIGNING_PASSWORD: ${{ secrets.VELVET_SIGNING_PASSWORD }}
+        run: |
+          TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          if [[ -n "${VELVET_SIGNING_KEYSTORE_B64:-}" && -n "${VELVET_SIGNING_PASSWORD:-}" ]]; then
+            printf '%s' "$VELVET_SIGNING_KEYSTORE_B64" | base64 --decode > build/personal.jks
+            "$TOOLS/apksigner" sign --ks build/personal.jks \
+              --ks-pass env:VELVET_SIGNING_PASSWORD --ks-key-alias velvet \
+              --key-pass env:VELVET_SIGNING_PASSWORD \
+              --out dist/Velvet_Atelier_Studio_v3_6_Generation_Stability.apk build/aligned.apk
+            echo "mode=private_persistent_key" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Private signing secrets were not configured. This build will NOT be upgradable in place using another generated key."
+            keytool -genkeypair -storetype PKCS12 -keystore build/personal.jks \
+              -storepass android -keypass android -alias velvet -keyalg RSA -keysize 3072 \
+              -validity 3650 -dname "CN=Velvet Atelier, O=Personal Noncommercial, C=US" -noprompt
+            "$TOOLS/apksigner" sign --ks build/personal.jks --ks-pass pass:android \
+              --ks-key-alias velvet --key-pass pass:android \
+              --out dist/Velvet_Atelier_Studio_v3_6_Generation_Stability.apk build/aligned.apk
+            echo "mode=temporary_not_upgradable" >> "$GITHUB_OUTPUT"
+          fi
+          "$TOOLS/apksigner" verify --verbose dist/Velvet_Atelier_Studio_v3_6_Generation_Stability.apk
+          "$TOOLS/aapt" dump badging dist/Velvet_Atelier_Studio_v3_6_Generation_Stability.apk | head -15
+          python3 - <<'PY'
+          from zipfile import ZipFile
+          p='dist/Velvet_Atelier_Studio_v3_6_Generation_Stability.apk'
+          with ZipFile(p) as z:
+            assert 'classes2.dex' in z.namelist()
+            import re
+            classes=z.read('classes2.dex')
+            for name in (b'PixelStudioActivity',b'PixelEngine',b'VelvetHubActivity',b'GuidedStudioActivity',b'ImageUpscaleActivity',b'ImageResampler',b'QualityTuning',b'LongPromptPlanner',b'PromptImportPolicy',b'LongPromptRunnerActivity',b'NativeTokenBudget',b'GenerationDimensions',b'FaceRepairStudioActivity',b'FacePatchEngine',b'RegionSelectionView',b'GenerationPassPolicy',b'LocalPerformanceLog',b'RepairPromptTemplates',b'ModelDiagnostics',b'ModelArtifactVerifier',b'PromptBuilder',b'IncludedModelProvider',b'ModelStorage'):
+                assert name in classes, name
+            assert 'lib/arm64-v8a/libstable_diffusion_core.so' in z.namelist()
+            assert len([k for k in z.namelist() if k.startswith('assets/included/part-')])>=16
+          print('Validated complete signed offline installer:',p)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Velvet_Atelier_Studio_v3_6_Generation_Stability
+          path: dist/Velvet_Atelier_Studio_v3_6_Generation_Stability.apk
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+
+      - name: Publish single APK direct download
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create velvet-atelier-studio-3-6 \
+            dist/Velvet_Atelier_Studio_v3_6_Generation_Stability.apk \
+            --title "Velvet Atelier Studio v3.6 - Generation Stability" \
+            --notes "Velvet Atelier v3.6 stability release. Retains v3.5 quality-first face/anatomy and style prompting, lossless full prompt import, offline bundled MeinaHentai model, guided card editor, local diffusion repair, pixel studio and offline resizing. Fixes long-prompt intermediate bitmap retention on cancellation and prevents concurrent PNG exports from racing against bitmap recycling in both the long-prompt renderer and face repair. Fixes long negative prompts: the first native CLIP-sized negative window is verified by /tokenize overflow_offset directly, avoiding needless long-negative failures and work. Fixes portrait/landscape being coerced into square in experimental automatic multi-pass generation; maintains image ratio while bounding output to phone-safe 512*768 pixels, sides <= 768. JVM and Android compile tests, model-integrity and signing tests have passed in CI; actual on-device generation and image quality are NOT verified. Signing mode ${{ steps.sign.outputs.mode }}: if temporary, cannot update v3.5 in place, back up profile JSON before uninstalling older Studio. Original Local Dream CC BY-NC, bundled Meina model OpenRAIL-M; no new models or AI super-resolution packs." \
+            --target velvet-atelier-apk
