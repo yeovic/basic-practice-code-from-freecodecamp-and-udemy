@@ -1,4 +1,4 @@
-name: Velvet v3.6 Stability and Aspect QA
+name: Velvet v3.7 Repair and Token Packing QA
 on:
   push:
     branches: [velvet-atelier-apk]
@@ -19,6 +19,10 @@ on:
       - 'velvet/NativeTokenBudgetTest.java'
       - 'velvet/GenerationDimensions.java'
       - 'velvet/GenerationDimensionsTest.java'
+      - 'velvet/NativePromptCompactor.java'
+      - 'velvet/NativePromptCompactorTest.java'
+      - 'velvet/RepairUndoPatch.java'
+      - 'velvet/RepairUndoPatchTest.java'
       - 'velvet/FaceRepairStudioActivity.java'
       - 'velvet/FacePatchEngine.java'
       - 'velvet/FacePatchEngineTest.java'
@@ -52,6 +56,10 @@ jobs:
           java -cp build/upscaleqa org.velvetatelier.ModelArtifactVerifierTest
           javac -d build/upscaleqa velvet/GenerationDimensions.java velvet/GenerationDimensionsTest.java
           java -cp build/upscaleqa org.velvetatelier.GenerationDimensionsTest
+          javac -d build/upscaleqa velvet/NativePromptCompactor.java velvet/NativePromptCompactorTest.java
+          java -cp build/upscaleqa org.velvetatelier.NativePromptCompactorTest
+          javac -d build/upscaleqa velvet/RepairUndoPatch.java velvet/RepairUndoPatchTest.java velvet/FacePatchEngine.java
+          java -cp build/upscaleqa org.velvetatelier.RepairUndoPatchTest
           javac -d build/upscaleqa velvet/NativeTokenBudget.java velvet/NativeTokenBudgetTest.java
           java -cp build/upscaleqa org.velvetatelier.NativeTokenBudgetTest
           javac -d build/upscaleqa velvet/GenerationPassPolicy.java velvet/GenerationPassPolicyTest.java
@@ -77,9 +85,9 @@ jobs:
             velvet/LongPromptRunnerActivity.java \
             velvet/FaceRepairStudioActivity.java velvet/FacePatchEngine.java \
             velvet/RegionSelectionView.java velvet/RepairPromptTemplates.java \
-            velvet/GenerationPassPolicy.java velvet/LocalPerformanceLog.java velvet/NativeTokenBudget.java \
-            velvet/GenerationDimensions.java \
+            velvet/GenerationPassPolicy.java velvet/LocalPerformanceLog.java velvet/NativeTokenBudget.java velvet/NativePromptCompactor.java \
+            velvet/RepairUndoPatch.java velvet/GenerationDimensions.java \
             velvet/PromptImportPolicy.java \
             velvet/ImageResampler.java velvet/ImageUpscaleActivity.java \
             velvet/ModelDiagnostics.java velvet/ModelArtifactVerifier.java
-          echo 'PASS: v3.6 native prompt clipping, portrait inference and bitmap lifecycle Android compile'
+          echo 'PASS: v3.7 native token packing, crop-only undo, and Android generation/repair UI compile'
