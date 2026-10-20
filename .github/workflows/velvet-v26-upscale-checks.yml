@@ -15,6 +15,8 @@ on:
       - 'velvet/QualityTuningTest.java'
       - 'velvet/LongPromptPlanner.java'
       - 'velvet/LongPromptRunnerActivity.java'
+      - 'velvet/NativeTokenBudget.java'
+      - 'velvet/NativeTokenBudgetTest.java'
       - 'velvet/FaceRepairStudioActivity.java'
       - 'velvet/FacePatchEngine.java'
       - 'velvet/FacePatchEngineTest.java'
@@ -46,6 +48,8 @@ jobs:
           mkdir -p build/upscaleqa
           javac -d build/upscaleqa velvet/ModelArtifactVerifier.java velvet/ModelArtifactVerifierTest.java
           java -cp build/upscaleqa org.velvetatelier.ModelArtifactVerifierTest
+          javac -d build/upscaleqa velvet/NativeTokenBudget.java velvet/NativeTokenBudgetTest.java
+          java -cp build/upscaleqa org.velvetatelier.NativeTokenBudgetTest
           javac -d build/upscaleqa velvet/GenerationPassPolicy.java velvet/GenerationPassPolicyTest.java
           java -cp build/upscaleqa org.velvetatelier.GenerationPassPolicyTest
           javac -d build/upscaleqa velvet/FacePatchEngine.java velvet/FacePatchEngineTest.java velvet/RepairPromptTemplates.java
@@ -69,7 +73,7 @@ jobs:
             velvet/LongPromptRunnerActivity.java \
             velvet/FaceRepairStudioActivity.java velvet/FacePatchEngine.java \
             velvet/RegionSelectionView.java velvet/RepairPromptTemplates.java \
-            velvet/GenerationPassPolicy.java velvet/LocalPerformanceLog.java \
+            velvet/GenerationPassPolicy.java velvet/LocalPerformanceLog.java velvet/NativeTokenBudget.java \
             velvet/PromptImportPolicy.java \
             velvet/ImageResampler.java velvet/ImageUpscaleActivity.java \
             velvet/ModelDiagnostics.java velvet/ModelArtifactVerifier.java
