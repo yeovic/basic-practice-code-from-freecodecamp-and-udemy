@@ -155,14 +155,28 @@ public final class FaceRepairStudioActivity extends Activity {
         if(code!=RESULT_OK||data==null||data.getData()==null)return;
         Uri uri=data.getData();
         if(request==PICK)load(uri);
-        else if(request==EXPORT && result!=null){
+        else if(request==EXPORT && result!=null && !busy){
+            // Keep the bitmap alive during PNG compression. Loading another
+            // image while saving would otherwise recycle its source.
+            busy=true;
+            generateButton.setEnabled(false);
+            saveButton.setEnabled(false);
             final Bitmap saved=result;
             worker.execute(()->{
+                String msg="Repaired image exported.";
                 try(OutputStream out=getContentResolver().openOutputStream(uri)){
                     if(out==null||!saved.compress(Bitmap.CompressFormat.PNG,100,out))
                         throw new IOException("Cannot save image");
-                    out.flush();message("Repaired image exported.");
-                }catch(Exception ex){message("Export failed: "+ex.getMessage());}
+                    out.flush();
+                }catch(Exception ex){msg="Export failed: "+ex.getMessage();}
+                final String report=msg;
+                main.post(()->{
+                    if(disposed)return;
+                    busy=false;
+                    generateButton.setEnabled(true);
+                    saveButton.setEnabled(result!=null);
+                    status.setText(report);
+                });
             });
         }
     }
