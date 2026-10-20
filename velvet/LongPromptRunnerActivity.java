@@ -140,13 +140,13 @@ public final class LongPromptRunnerActivity extends Activity {
                 LocalPerformanceLog.record(this,"backend_ready",0,width,height,loadMs,-1,gpuRequested);
                 ui("Local model backend ready in "+loadMs+" ms.");
                 List<String> prompts=exactPasses(prompt);
-                List<String> negatives=exactPasses(negative);
-                int count=GenerationPassPolicy.requiredPasses(
-                    prompts.size(),negatives.size());
-                // Negative-only overflow must never trigger an additional
-                // full diffusion pass. Keep the high-priority exclusions
-                // from the FIRST negative chunk on every pass.
-                String stableNegative=GenerationPassPolicy.stableNegative(negatives.get(0));
+                // Important exclusions are already front-loaded by the
+                // prompt builder. Validate ONLY the first native CLIP window:
+                // very long negative lists must not cause fake extra passes,
+                // wasted tokenizer work or max-pass errors.
+                String stableNegative=GenerationPassPolicy.stableNegative(
+                    firstVerifiedNegative(negative));
+                int count=GenerationPassPolicy.requiredPasses(prompts.size(),1);
                 ui("Backend ready. "+count+" positive passes; "
                     +"native BPE validation complete. Negative exclusions stay consistent.");
                 for(int i=0;i<count;i++){
@@ -261,6 +261,16 @@ public final class LongPromptRunnerActivity extends Activity {
     private int nativeTokenCount(String text)throws Exception{
         JSONObject in=new JSONObject();in.put("prompt",text);
         return postJson("/tokenize",in).getInt("count");
+    }
+    private String firstVerifiedNegative(String value)throws Exception{
+        return NativeTokenBudget.firstChunk(value,77,text->{
+            JSONObject in=new JSONObject();
+            in.put("prompt",text);
+            JSONObject nativeCount=postJson("/tokenize",in);
+            return new NativeTokenBudget.Snapshot(
+                nativeCount.getInt("count"),
+                nativeCount.optInt("overflow_offset",-1));
+        });
     }
     private List<String> exactPasses(String input)throws Exception{
         List<String> result=new ArrayList<>();
