@@ -292,8 +292,10 @@ public final class LongPromptRunnerActivity extends Activity {
         // verification through the real on-phone /tokenize endpoint.
         LongPromptPlanner.Plan draft=LongPromptPlanner.plan(input);
         for(String part:draft.passes)splitVerified(part,result,0);
-        if(result.size()>12)throw new IOException("More than 12 token-safe passes");
-        return result;
+        // Repack adjacent verified chunks using the *actual* on-phone CLIP
+        // tokenizer. Word-count-only chunks leave unused context and waste
+        // whole native img2img generations on complex character descriptions.
+        return NativePromptCompactor.compact(result,77,12,this::nativeTokenCount);
     }
     private void splitVerified(String text,List<String> parts,int depth)throws Exception{
         if(cancel.get())throw new IOException("Cancelled");
