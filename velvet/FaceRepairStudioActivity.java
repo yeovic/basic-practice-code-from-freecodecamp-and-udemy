@@ -56,7 +56,8 @@ public final class FaceRepairStudioActivity extends Activity {
     private SeekBar sizeSeek,denoiseSeek;
     private CheckBox gpu;
     private Spinner repairTarget,anatomySize;
-    private Button generateButton,saveButton;
+    private Button generateButton,saveButton,undoButton;
+    private RepairUndoPatch lastUndo;
     private float x=.5f,y=.28f;
 
     @Override public void onCreate(Bundle state) {
@@ -106,6 +107,8 @@ public final class FaceRepairStudioActivity extends Activity {
         gpu=new CheckBox(this);gpu.setText("Experimental OpenCL GPU (disable if unstable)");
         gpu.setTextColor(0xffe4d2f0);gpu.setChecked(false);body.addView(gpu);
         generateButton=button(body,"Repair selected region locally",this::startRepair);
+        undoButton=button(body,"Undo last region repair",this::undoLastRepair);
+        undoButton.setEnabled(false);
         button(body,"Cancel current operation",()->{
             cancel.set(true);HttpURLConnection c=active;if(c!=null)c.disconnect();
         });
@@ -210,6 +213,8 @@ public final class FaceRepairStudioActivity extends Activity {
                     preview.setSelectionRegion(null);
                     if(result!=null && result!=input){result.recycle();}
                     result=null;
+                    lastUndo=null;
+                    undoButton.setEnabled(false);
                     if(input!=null)input.recycle();
                     input=decoded;x=.5f;y=.28f;
                     saveButton.setEnabled(false);
@@ -232,6 +237,24 @@ public final class FaceRepairStudioActivity extends Activity {
         preview.setImageBitmap(input);
         preview.setSelectionRegion(r);
         status.setText("Selection: "+r.toString()+" — tap the region to reposition");
+    }
+    private void undoLastRepair(){
+        if(busy||input==null||lastUndo==null)return;
+        RepairUndoPatch saved=lastUndo;
+        FacePatchEngine.Region r=saved.region;
+        if(input.isRecycled()||!input.isMutable()){
+            message("Cannot undo: current image is unavailable.");return;
+        }
+        input.setPixels(saved.restorePixels(),0,r.size,
+            r.left,r.top,r.size,r.size);
+        lastUndo=null;
+        undoButton.setEnabled(false);
+        preview.setImageBitmap(null);
+        preview.setImageBitmap(input);
+        preview.setSelectionRegion(null);
+        if(result==null)result=input;
+        saveButton.setEnabled(true);
+        status.setText("Last localized repair undone; earlier edits remain.");
     }
     private void startRepair(){
         if(input==null||busy)return;
@@ -284,6 +307,9 @@ public final class FaceRepairStudioActivity extends Activity {
                         result.recycle();
                     input=done;
                     result=done;
+                    // Only the last affected crop is saved for undo.
+                    lastUndo=new RepairUndoPatch(r,originalPatch);
+                    undoButton.setEnabled(true);
                     preview.setImageBitmap(done);
                     preview.setSelectionRegion(null);
                     if(prior!=null && prior!=done)prior.recycle();
@@ -300,7 +326,10 @@ public final class FaceRepairStudioActivity extends Activity {
                 // Keep the native backend alive across repeated repairs while
                 // this Activity is open, avoiding repeated MNN model loads.
                 // onDestroy() tears it down when leaving this studio.
-                busy=false;main.post(()->{
+                // Keep exclusive bitmap ownership until any queued UI
+                // result callback has run. The worker is not the UI owner.
+                main.post(()->{
+                    busy=false;
                     if(!disposed)generateButton.setEnabled(true);
                 });
             }
