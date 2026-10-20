@@ -602,6 +602,9 @@ public final class GuidedStudioActivity extends Activity {
                 intent.putExtra(LongPromptRunnerActivity.EXTRA_CFG,r.cfg);
                 intent.putExtra(LongPromptRunnerActivity.EXTRA_SEED,r.seed);
                 intent.putExtra(LongPromptRunnerActivity.EXTRA_SCHEDULER,r.scheduler);
+                intent.putExtra(LongPromptRunnerActivity.EXTRA_WIDTH,r.width);
+                intent.putExtra(LongPromptRunnerActivity.EXTRA_HEIGHT,r.height);
+                // Preserve backwards compatibility with older runner bundles.
                 intent.putExtra(LongPromptRunnerActivity.EXTRA_SIZE,r.width);
                 startActivity(intent);
             }).show();
