@@ -130,6 +130,7 @@ public final class LongPromptRunnerActivity extends Activity {
         busy=true;cancel.set(false);start.setEnabled(false);stop.setEnabled(true);save.setEnabled(false);
         final boolean gpuRequested=openClEnabled.isChecked();
         worker.execute(()->{
+            Bitmap current=null;
             try{
                 long loadStarted=System.nanoTime();
                 startBackend();
@@ -148,7 +149,6 @@ public final class LongPromptRunnerActivity extends Activity {
                 String stableNegative=GenerationPassPolicy.stableNegative(negatives.get(0));
                 ui("Backend ready. "+count+" positive passes; "
                     +"native BPE validation complete. Negative exclusions stay consistent.");
-                Bitmap current=null;
                 for(int i=0;i<count;i++){
                     if(cancel.get())throw new IOException("Generation cancelled");
                     String positive=prompts.get(i);
@@ -172,6 +172,7 @@ public final class LongPromptRunnerActivity extends Activity {
                         +"; retaining just the current working image.");
                 }
                 final Bitmap output=current;
+                current=null; // UI callback now owns the completed Bitmap.
                 handler.post(()->{
                     if(dead){output.recycle();return;}
                     if(finished!=null && finished!=output)finished.recycle();
@@ -185,6 +186,9 @@ public final class LongPromptRunnerActivity extends Activity {
                 ui("Long prompt failed: "+ex.getMessage());
                 handler.post(this::finishBusy);
             }finally{
+                // Cancellation, network failure and invalid native output all
+                // release intermediate full-resolution results immediately.
+                if(current!=null && !current.isRecycled())current.recycle();
                 currentConnection=null;
                 stopBackend();
             }
@@ -361,14 +365,28 @@ public final class LongPromptRunnerActivity extends Activity {
     }
     @Override protected void onActivityResult(int request,int resultCode,Intent data){
         super.onActivityResult(request,resultCode,data);
-        if(request!=SAVE||resultCode!=RESULT_OK||data==null||finished==null)return;
+        if(request!=SAVE||resultCode!=RESULT_OK||data==null
+            ||data.getData()==null||finished==null||busy)return;
+        // Hold image ownership until export finishes; otherwise Start can
+        // recycle the same image while PNG compression is using it.
+        busy=true;start.setEnabled(false);save.setEnabled(false);
         final Bitmap image=finished;
+        final android.net.Uri uri=data.getData();
         worker.execute(()->{
-            try(OutputStream out=getContentResolver().openOutputStream(data.getData())){
+            String message="Final PNG saved.";
+            try(OutputStream out=getContentResolver().openOutputStream(uri)){
                 if(out==null||!image.compress(Bitmap.CompressFormat.PNG,100,out))
                     throw new IOException("Cannot export PNG");
-                out.flush();ui("Final PNG saved.");
-            }catch(Exception ex){ui("Export failed: "+ex.getMessage());}
+                out.flush();
+            }catch(Exception ex){message="Export failed: "+ex.getMessage();}
+            final String outcome=message;
+            handler.post(()->{
+                if(dead)return;
+                status.setText(outcome);
+                busy=false;
+                start.setEnabled(true);
+                save.setEnabled(finished!=null);
+            });
         });
     }
     @Override protected void onDestroy(){
