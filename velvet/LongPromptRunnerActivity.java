@@ -49,6 +49,8 @@ public final class LongPromptRunnerActivity extends Activity {
     public static final String EXTRA_SEED="velvet_seed";
     public static final String EXTRA_SCHEDULER="velvet_scheduler";
     public static final String EXTRA_SIZE="velvet_size";
+    public static final String EXTRA_WIDTH="velvet_width";
+    public static final String EXTRA_HEIGHT="velvet_height";
     private static final int SAVE=3011;
     private static final String HOST="http://127.0.0.1:8081";
     private final Handler handler=new Handler(Looper.getMainLooper());
@@ -77,8 +79,17 @@ public final class LongPromptRunnerActivity extends Activity {
         steps=Math.max(10,Math.min(50,input.getIntExtra(EXTRA_STEPS,24)));
         cfg=input.getFloatExtra(EXTRA_CFG,6.5f);
         seed=input.getLongExtra(EXTRA_SEED,-1);
-        int requested=input.getIntExtra(EXTRA_SIZE,512);
-        width=height=requested==384?384:512;
+        int oldSquare=input.getIntExtra(EXTRA_SIZE,512);
+        int requestedWidth=input.getIntExtra(EXTRA_WIDTH,oldSquare);
+        int requestedHeight=input.getIntExtra(EXTRA_HEIGHT,oldSquare);
+        GenerationDimensions.Size chosen;
+        try{chosen=GenerationDimensions.phoneSafe(requestedWidth,requestedHeight);}
+        catch(IllegalArgumentException ex){
+            chosen=GenerationDimensions.phoneSafe(512,512);
+        }
+        width=chosen.width;
+        height=chosen.height;
+        final boolean adjusted=chosen.downscaled;
         LinearLayout body=new LinearLayout(this);
         body.setOrientation(LinearLayout.VERTICAL);
         body.setPadding(20,20,20,26);
@@ -87,6 +98,9 @@ public final class LongPromptRunnerActivity extends Activity {
         scroll.addView(body);
         text(body,"LONG PROMPT STUDIO",24,Color.WHITE,true);
         text(body,"Runs multiple CLIP-length prompts sequentially through the same OFFLINE image model. Later passes refine the previous output via low-denoise img2img. Not the same as a larger native attention window.",14,0xffd7c8e5,false);
+        text(body,"Render canvas: "+width+" × "+height+
+            (adjusted?" (scaled down to phone-safe limit)":""),
+            14,0xffd7c8e5,false);
         status=text(body,"Ready. Select Start when Meina model setup is complete.",14,0xffd7c8e5,false);
         preview=new ImageView(this);
         preview.setScaleType(ImageView.ScaleType.FIT_CENTER);
