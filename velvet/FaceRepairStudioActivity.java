@@ -108,12 +108,15 @@ public final class FaceRepairStudioActivity extends Activity {
         protectEdges.setText("Protect surrounding details with native inpainting mask");
         protectEdges.setTextColor(0xffe4d2f0);protectEdges.setChecked(true);
         body.addView(protectEdges);
+        protectEdges.setOnCheckedChangeListener((button,enabled)->updateOutline());
         label(body,"Editable mask coverage (40–95%)",13);
         maskCoverageSeek=new SeekBar(this);maskCoverageSeek.setMax(55);
         maskCoverageSeek.setProgress(42);body.addView(maskCoverageSeek);
+        maskCoverageSeek.setOnSeekBarChangeListener(seekListener(this::updateOutline));
         label(body,"Mask edge feather (3–30%)",13);
         maskFeatherSeek=new SeekBar(this);maskFeatherSeek.setMax(27);
         maskFeatherSeek.setProgress(10);body.addView(maskFeatherSeek);
+        maskFeatherSeek.setOnSeekBarChangeListener(seekListener(this::updateOutline));
         label(body,"Final blend strength (50–100%)",13);
         blendSeek=new SeekBar(this);blendSeek.setMax(50);
         blendSeek.setProgress(42);body.addView(blendSeek);
@@ -251,6 +254,8 @@ public final class FaceRepairStudioActivity extends Activity {
         FacePatchEngine.Region r=selectedRegion();
         preview.setImageBitmap(input);
         preview.setSelectionRegion(r);
+        preview.setMaskPreview(protectEdges.isChecked(),
+            40+maskCoverageSeek.getProgress(),3+maskFeatherSeek.getProgress());
         status.setText("Selection: "+r.toString()+" — tap the region to reposition");
     }
     private void undoLastRepair(){
