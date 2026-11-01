@@ -25,6 +25,7 @@ on:
       - 'velvet/RepairUndoPatchTest.java'
       - 'velvet/RepairMask.java'
       - 'velvet/RepairMaskTest.java'
+      - 'velvet/NativeBackendConfiguration.java'
       - 'velvet/FaceRepairStudioActivity.java'
       - 'velvet/FacePatchEngine.java'
       - 'velvet/FacePatchEngineTest.java'
@@ -90,7 +91,7 @@ jobs:
             velvet/FaceRepairStudioActivity.java velvet/FacePatchEngine.java \
             velvet/RegionSelectionView.java velvet/RepairPromptTemplates.java \
             velvet/GenerationPassPolicy.java velvet/LocalPerformanceLog.java velvet/NativeTokenBudget.java velvet/NativePromptCompactor.java \
-            velvet/RepairUndoPatch.java velvet/RepairMask.java velvet/GenerationDimensions.java \
+            velvet/RepairUndoPatch.java velvet/RepairMask.java velvet/NativeBackendConfiguration.java velvet/GenerationDimensions.java \
             velvet/PromptImportPolicy.java \
             velvet/ImageResampler.java velvet/ImageUpscaleActivity.java \
             velvet/ModelDiagnostics.java velvet/ModelArtifactVerifier.java
