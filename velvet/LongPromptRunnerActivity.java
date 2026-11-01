@@ -115,7 +115,7 @@ public final class LongPromptRunnerActivity extends Activity {
         stop=button(body,"Cancel",()->{cancel.set(true);HttpURLConnection c=currentConnection;if(c!=null)c.disconnect();});
         save=button(body,"Save final PNG",this::export);
         stop.setEnabled(false);save.setEnabled(false);
-        text(body,"The model must have completed first-run conversion. Performance and image fidelity will vary with each pass; additional passes can change composition. This activity never uploads images to the internet.",13,0xffbca5ce,false);
+        text(body,"The model must have completed first-run conversion. Performance and image fidelity will vary with each pass; additional passes can change composition. Image-to-image will be enabled locally if previously disabled. This activity never uploads images to the internet.",13,0xffbca5ce,false);
         setContentView(scroll);
     }
     private static TextView text(LinearLayout v,String value,int sp,int color,boolean bold){
@@ -141,13 +141,19 @@ public final class LongPromptRunnerActivity extends Activity {
             ui("The included Meina model is not READY. Return to the home screen and finish setup.");
             return;
         }
+        final boolean backendNeedsRestart;
+        try{
+            backendNeedsRestart=NativeBackendConfiguration.enableImg2Img(this);
+        }catch(Exception ex){
+            ui("Could not enable image-to-image: "+ex.getMessage());return;
+        }
         busy=true;cancel.set(false);start.setEnabled(false);stop.setEnabled(true);save.setEnabled(false);
         final boolean gpuRequested=openClEnabled.isChecked();
         worker.execute(()->{
             Bitmap current=null;
             try{
                 long loadStarted=System.nanoTime();
-                startBackend();
+                startBackend(backendNeedsRestart);
                 if(!waitForBackend())throw new IOException(
                     "Local inference backend did not become ready. Check model conversion and available RAM.");
                 long loadMs=(System.nanoTime()-loadStarted)/1_000_000L;
@@ -212,9 +218,10 @@ public final class LongPromptRunnerActivity extends Activity {
         busy=false;if(dead)return;
         start.setEnabled(true);stop.setEnabled(false);
     }
-    private void startBackend(){
+    private void startBackend(boolean restartRequired){
         Intent service=new Intent().setClassName(this,
             "io.github.xororz.localdream.service.BackendService");
+        if(restartRequired)service.setAction(NativeBackendConfiguration.ACTION_RESTART);
         service.putExtra("modelId","MeinaHentaiV21");
         service.putExtra("backendType","sd15cpu");
         service.putExtra("width",width);
