@@ -1,4 +1,4 @@
-name: Velvet v3.7 Repair and Token Packing QA
+name: Velvet v3.8 Masked Inpainting QA
 on:
   push:
     branches: [velvet-atelier-apk]
@@ -23,6 +23,8 @@ on:
       - 'velvet/NativePromptCompactorTest.java'
       - 'velvet/RepairUndoPatch.java'
       - 'velvet/RepairUndoPatchTest.java'
+      - 'velvet/RepairMask.java'
+      - 'velvet/RepairMaskTest.java'
       - 'velvet/FaceRepairStudioActivity.java'
       - 'velvet/FacePatchEngine.java'
       - 'velvet/FacePatchEngineTest.java'
@@ -64,6 +66,8 @@ jobs:
           java -cp build/upscaleqa org.velvetatelier.NativeTokenBudgetTest
           javac -d build/upscaleqa velvet/GenerationPassPolicy.java velvet/GenerationPassPolicyTest.java
           java -cp build/upscaleqa org.velvetatelier.GenerationPassPolicyTest
+          javac -d build/upscaleqa velvet/RepairMask.java velvet/RepairMaskTest.java
+          java -cp build/upscaleqa org.velvetatelier.RepairMaskTest
           javac -d build/upscaleqa velvet/FacePatchEngine.java velvet/FacePatchEngineTest.java velvet/RepairPromptTemplates.java
           java -cp build/upscaleqa org.velvetatelier.FacePatchEngineTest
           javac -d build/upscaleqa velvet/ImageResampler.java velvet/ImageResamplerTest.java
@@ -86,8 +90,8 @@ jobs:
             velvet/FaceRepairStudioActivity.java velvet/FacePatchEngine.java \
             velvet/RegionSelectionView.java velvet/RepairPromptTemplates.java \
             velvet/GenerationPassPolicy.java velvet/LocalPerformanceLog.java velvet/NativeTokenBudget.java velvet/NativePromptCompactor.java \
-            velvet/RepairUndoPatch.java velvet/GenerationDimensions.java \
+            velvet/RepairUndoPatch.java velvet/RepairMask.java velvet/GenerationDimensions.java \
             velvet/PromptImportPolicy.java \
             velvet/ImageResampler.java velvet/ImageUpscaleActivity.java \
             velvet/ModelDiagnostics.java velvet/ModelArtifactVerifier.java
-          echo 'PASS: v3.7 native token packing, crop-only undo, and Android generation/repair UI compile'
+          echo 'PASS: v3.8 native mask geometry, retained source tools and Android generation UI compilation'
