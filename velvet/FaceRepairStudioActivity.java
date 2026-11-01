@@ -53,8 +53,8 @@ public final class FaceRepairStudioActivity extends Activity {
     private Bitmap input,result;
     private RegionSelectionView preview;
     private TextView status;
-    private SeekBar sizeSeek,denoiseSeek;
-    private CheckBox gpu;
+    private SeekBar sizeSeek,denoiseSeek,maskCoverageSeek,maskFeatherSeek,blendSeek;
+    private CheckBox gpu,protectEdges;
     private Spinner repairTarget,anatomySize;
     private Button generateButton,saveButton,undoButton;
     private RepairUndoPatch lastUndo;
@@ -104,6 +104,21 @@ public final class FaceRepairStudioActivity extends Activity {
         label(body,"Face repair strength / denoising",13);
         denoiseSeek=new SeekBar(this);denoiseSeek.setMax(38);denoiseSeek.setProgress(14);body.addView(denoiseSeek);
         label(body,"Start near 0.30. Higher strength may change identity, expression or style.",12);
+        protectEdges=new CheckBox(this);
+        protectEdges.setText("Protect surrounding details with native inpainting mask");
+        protectEdges.setTextColor(0xffe4d2f0);protectEdges.setChecked(true);
+        body.addView(protectEdges);
+        label(body,"Editable mask coverage (40–95%)",13);
+        maskCoverageSeek=new SeekBar(this);maskCoverageSeek.setMax(55);
+        maskCoverageSeek.setProgress(42);body.addView(maskCoverageSeek);
+        label(body,"Mask edge feather (3–30%)",13);
+        maskFeatherSeek=new SeekBar(this);maskFeatherSeek.setMax(27);
+        maskFeatherSeek.setProgress(10);body.addView(maskFeatherSeek);
+        label(body,"Final blend strength (50–100%)",13);
+        blendSeek=new SeekBar(this);blendSeek.setMax(50);
+        blendSeek.setProgress(42);body.addView(blendSeek);
+        label(body,"The native mask prevents full-square redraws; the final blend "
+            +"softens the border. Turn masking off to use the previous full-crop method.",12);
         gpu=new CheckBox(this);gpu.setText("Experimental OpenCL GPU (disable if unstable)");
         gpu.setTextColor(0xffe4d2f0);gpu.setChecked(false);body.addView(gpu);
         generateButton=button(body,"Repair selected region locally",this::startRepair);
@@ -265,6 +280,10 @@ public final class FaceRepairStudioActivity extends Activity {
         final FacePatchEngine.Region r=selectedRegion();
         final boolean useGpu=gpu.isChecked();
         final float denoise=.16f+denoiseSeek.getProgress()*.01f;
+        final boolean useMask=protectEdges.isChecked();
+        final int maskCoverage=40+maskCoverageSeek.getProgress();
+        final int maskFeather=3+maskFeatherSeek.getProgress();
+        final float blendStrength=(50+blendSeek.getProgress())/100f;
         final int target=repairTarget.getSelectedItemPosition();
         final int sizePreference=anatomySize.getSelectedItemPosition();
         busy=true;cancel.set(false);
@@ -281,7 +300,8 @@ public final class FaceRepairStudioActivity extends Activity {
                 LocalPerformanceLog.record(this,"repair_backend_ready",0,512,512,
                     (System.nanoTime()-warmStart)/1_000_000L,-1,useGpu);
                 message("Refining selected face with Meina SD1.5...");
-                enhanced=redraw(source,denoise,useGpu,target,sizePreference);
+                enhanced=redraw(source,denoise,useGpu,target,sizePreference,
+                    useMask,maskCoverage,maskFeather);
                 if(cancel.get())throw new IOException("Repair cancelled");
                 Bitmap scaled=Bitmap.createScaledBitmap(enhanced,r.size,r.size,true);
                 int w=input.getWidth(),h=input.getHeight();
@@ -292,7 +312,7 @@ public final class FaceRepairStudioActivity extends Activity {
                 int[] generatedPatch=new int[r.size*r.size];
                 scaled.getPixels(generatedPatch,0,r.size,0,0,r.size,r.size);
                 int[] blended=FacePatchEngine.compositePatch(
-                    originalPatch,generatedPatch,r.size,Math.max(3,r.size/7),.92f);
+                    originalPatch,generatedPatch,r.size,Math.max(3,r.size/7),blendStrength);
                 newResult=input.copy(Bitmap.Config.ARGB_8888,true);
                 if(newResult==null)throw new IOException("Cannot allocate result bitmap");
                 newResult.setPixels(blended,0,r.size,r.left,r.top,r.size,r.size);
@@ -366,7 +386,8 @@ public final class FaceRepairStudioActivity extends Activity {
         return false;
     }
     private Bitmap redraw(Bitmap face,float denoise,boolean useGpu,
-                          int target,int sizePreference)throws Exception{
+                          int target,int sizePreference,boolean useMask,
+                          int coveragePercent,int featherPercent)throws Exception{
         ByteArrayOutputStream bytes=new ByteArrayOutputStream(300000);
         if(!face.compress(Bitmap.CompressFormat.PNG,100,bytes))
             throw new IOException("Cannot encode face crop");
@@ -374,6 +395,18 @@ public final class FaceRepairStudioActivity extends Activity {
         req.put("prompt",RepairPromptTemplates.positive(target,sizePreference));
         req.put("negative_prompt",RepairPromptTemplates.negative(target,sizePreference));
         req.put("image",Base64.encodeToString(bytes.toByteArray(),Base64.NO_WRAP));
+        if(useMask){
+            // Local Dream uses white for editable pixels and black for
+            // protected pixels; native latent and Laplacian blending apply.
+            int[] maskPixels=RepairMask.create(512,coveragePercent,featherPercent);
+            Bitmap mask=Bitmap.createBitmap(maskPixels,512,512,Bitmap.Config.ARGB_8888);
+            try{
+                ByteArrayOutputStream encoded=new ByteArrayOutputStream(24000);
+                if(!mask.compress(Bitmap.CompressFormat.PNG,100,encoded))
+                    throw new IOException("Cannot encode native repair mask");
+                req.put("mask",Base64.encodeToString(encoded.toByteArray(),Base64.NO_WRAP));
+            }finally{mask.recycle();}
+        }
         req.put("steps",22);req.put("cfg",5.5);
         req.put("width",512);req.put("height",512);
         req.put("denoise_strength",denoise);
