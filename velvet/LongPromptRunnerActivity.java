@@ -65,7 +65,7 @@ public final class LongPromptRunnerActivity extends Activity {
     private ImageView preview;
     private TextView status;
     private Button start,stop,save;
-    private CheckBox openClEnabled;
+    private CheckBox openClEnabled,preferNativeLong;
     private Bitmap finished;
 
     @Override public void onCreate(Bundle state){
@@ -111,11 +111,16 @@ public final class LongPromptRunnerActivity extends Activity {
         openClEnabled.setTextColor(0xffd7c8e5);
         openClEnabled.setChecked(false);
         body.addView(openClEnabled);
-        start=button(body,"Start local multi-pass generation",this::begin);
+        preferNativeLong=new CheckBox(this);
+        preferNativeLong.setText("Use true native long-context inference when supported (experimental)");
+        preferNativeLong.setTextColor(0xffd7c8e5);
+        preferNativeLong.setChecked(true);
+        body.addView(preferNativeLong);
+        start=button(body,"Start local long-prompt generation",this::begin);
         stop=button(body,"Cancel",()->{cancel.set(true);HttpURLConnection c=currentConnection;if(c!=null)c.disconnect();});
         save=button(body,"Save final PNG",this::export);
         stop.setEnabled(false);save.setEnabled(false);
-        text(body,"The model must have completed first-run conversion. Performance and image fidelity will vary with each pass; additional passes can change composition. Image-to-image will be enabled locally if previously disabled. This activity never uploads images to the internet.",13,0xffbca5ce,false);
+        text(body,"The bundled Local Dream 2.8.1 uses 77-position CLIP windows and sequential img2img. If a compatible newer native backend reports genuine multi-chunk support, this tool can use one longer-context generation (up to 231 positions). Both modes are offline; quality and performance must be tested on your device.",13,0xffbca5ce,false);
         setContentView(scroll);
     }
     private static TextView text(LinearLayout v,String value,int sp,int color,boolean bold){
@@ -149,6 +154,7 @@ public final class LongPromptRunnerActivity extends Activity {
         }
         busy=true;cancel.set(false);start.setEnabled(false);stop.setEnabled(true);save.setEnabled(false);
         final boolean gpuRequested=openClEnabled.isChecked();
+        final boolean tryNativeLong=preferNativeLong.isChecked();
         worker.execute(()->{
             Bitmap current=null;
             try{
@@ -159,16 +165,30 @@ public final class LongPromptRunnerActivity extends Activity {
                 long loadMs=(System.nanoTime()-loadStarted)/1_000_000L;
                 LocalPerformanceLog.record(this,"backend_ready",0,width,height,loadMs,-1,gpuRequested);
                 ui("Local model backend ready in "+loadMs+" ms.");
-                List<String> prompts=exactPasses(prompt);
-                // Important exclusions are already front-loaded by the
-                // prompt builder. Validate ONLY the first native CLIP window:
-                // very long negative lists must not cause fake extra passes,
-                // wasted tokenizer work or max-pass errors.
-                String stableNegative=GenerationPassPolicy.stableNegative(
-                    firstVerifiedNegative(negative));
+                // v2.8.1: exactly one 77-position CLIP window.
+                // Newer Local Dream 3.0 MNN: max_length=0 indicates dynamic
+                // 77-position chunk concatenation inside one UNet request.
+                // Never infer this capability from app version or guess.
+                JSONObject posQuery=new JSONObject();posQuery.put("prompt",prompt);
+                JSONObject posInfo=postJson("/tokenize",posQuery);
+                JSONObject negQuery=new JSONObject();negQuery.put("prompt",negative);
+                JSONObject negInfo=postJson("/tokenize",negQuery);
+                boolean nativeOnePass=tryNativeLong &&
+                    NativeContextPolicy.mayRunSinglePass(
+                        posInfo.optInt("max_length",77),
+                        posInfo.getInt("count"),negInfo.getInt("count"));
+                List<String> prompts=nativeOnePass?
+                    java.util.Collections.singletonList(prompt):exactPasses(prompt);
+                // On legacy backends keep the FIRST prioritized negative
+                // window. On a confirmed native extended context retain all.
+                String stableNegative=nativeOnePass?negative:
+                    GenerationPassPolicy.stableNegative(firstVerifiedNegative(negative));
                 int count=GenerationPassPolicy.requiredPasses(prompts.size(),1);
-                ui("Backend ready. "+count+" positive passes; "
-                    +"native BPE validation complete. Negative exclusions stay consistent.");
+                ui(nativeOnePass?
+                    "True native long-context mode: one attention pass, "
+                    +posInfo.getInt("count")+" positive tokens.":
+                    "Legacy native 77-context: "+count+" sequential positive passes. "
+                    +"Negative exclusions stay consistent.");
                 for(int i=0;i<count;i++){
                     if(cancel.get())throw new IOException("Generation cancelled");
                     String positive=prompts.get(i);
