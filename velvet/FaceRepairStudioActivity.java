@@ -121,7 +121,8 @@ public final class FaceRepairStudioActivity extends Activity {
         blendSeek=new SeekBar(this);blendSeek.setMax(50);
         blendSeek.setProgress(42);body.addView(blendSeek);
         label(body,"The native mask prevents full-square redraws; the final blend "
-            +"softens the border. Turn masking off to use the previous full-crop method.",12);
+            +"softens the border. Turn masking off to use the previous full-crop method. "
+            +"This tool enables Local Dream image-to-image if previously disabled.",12);
         gpu=new CheckBox(this);gpu.setText("Experimental OpenCL GPU (disable if unstable)");
         gpu.setTextColor(0xffe4d2f0);gpu.setChecked(false);body.addView(gpu);
         generateButton=button(body,"Repair selected region locally",this::startRepair);
@@ -282,6 +283,12 @@ public final class FaceRepairStudioActivity extends Activity {
             new File(ModelStorage.modelsDir(this),"MeinaHentaiV21"))){
             message("First complete model setup in the Velvet home screen.");return;
         }
+        final boolean backendNeedsRestart;
+        try{
+            backendNeedsRestart=NativeBackendConfiguration.enableImg2Img(this);
+        }catch(Exception ex){
+            message("Image-to-image cannot start: "+ex.getMessage());return;
+        }
         final FacePatchEngine.Region r=selectedRegion();
         final boolean useGpu=gpu.isChecked();
         final float denoise=.16f+denoiseSeek.getProgress()*.01f;
@@ -300,7 +307,7 @@ public final class FaceRepairStudioActivity extends Activity {
                 crop=Bitmap.createBitmap(input,r.left,r.top,r.size,r.size);
                 source=Bitmap.createScaledBitmap(crop,512,512,true);
                 long warmStart=System.nanoTime();
-                startBackend();
+                startBackend(backendNeedsRestart);
                 if(!waitForModel())throw new IOException("Local Dream backend not ready");
                 LocalPerformanceLog.record(this,"repair_backend_ready",0,512,512,
                     (System.nanoTime()-warmStart)/1_000_000L,-1,useGpu);
@@ -360,9 +367,10 @@ public final class FaceRepairStudioActivity extends Activity {
             }
         });
     }
-    private void startBackend() {
+    private void startBackend(boolean restartRequired) {
         Intent service=new Intent().setClassName(this,
             "io.github.xororz.localdream.service.BackendService");
+        if(restartRequired)service.setAction(NativeBackendConfiguration.ACTION_RESTART);
         service.putExtra("modelId","MeinaHentaiV21");
         service.putExtra("backendType","sd15cpu");
         service.putExtra("width",512);service.putExtra("height",512);
