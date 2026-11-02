@@ -221,11 +221,14 @@ public final class FaceRepairStudioActivity extends Activity {
                     (options.outHeight/dec.inSampleSize)>3_000_000L ||
                     Math.max(options.outWidth,options.outHeight)/dec.inSampleSize>2048)
                     dec.inSampleSize*=2;
-                Bitmap decoded;
+                Bitmap rawDecoded;
                 try(InputStream in=getContentResolver().openInputStream(uri)){
-                    decoded=BitmapFactory.decodeStream(in,null,dec);
+                    rawDecoded=BitmapFactory.decodeStream(in,null,dec);
                 }
-                if(decoded==null)throw new IOException("Could not decode image");
+                if(rawDecoded==null)throw new IOException("Could not decode image");
+                // BitmapFactory does not consistently apply EXIF orientation.
+                // Upright pixels ensure tapping a face selects that face.
+                final Bitmap decoded=ImageOrientationLoader.apply(this,uri,rawDecoded);
                 main.post(()->{
                     if(disposed){decoded.recycle();return;}
                     preview.setImageBitmap(null);
