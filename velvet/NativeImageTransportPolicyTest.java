@@ -21,11 +21,10 @@ public final class NativeImageTransportPolicyTest {
             "Wrong requested shape accepted");
         fail(()->NativeImageTransportPolicy.checkPng(png,512,768,512,512),
             "Native metadata mismatch accepted");
-        byte[] corrupt=png.clone();corrupt[0]=0;
-        fail(()->NativeImageTransportPolicy.checkPng(corrupt,512,768,512,768),
+        final byte[] badSignature=png.clone();badSignature[0]=0;
+        fail(()->NativeImageTransportPolicy.checkPng(badSignature,512,768,512,768),
             "Corrupt signature accepted");
-        corrupt=png.clone();corrupt[16]=1;
-        final byte[] oversized=corrupt;
+        final byte[] oversized=png.clone();oversized[16]=1;
         fail(()->NativeImageTransportPolicy.checkPng(oversized,512,768,512,768),
             "PNG IHDR dimension mismatch accepted");
         fail(()->NativeImageTransportPolicy.checkPng(new byte[10],512,768,512,768),
