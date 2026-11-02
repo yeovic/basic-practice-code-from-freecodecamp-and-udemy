@@ -347,7 +347,9 @@ public final class LongPromptRunnerActivity extends Activity {
         req.put("use_opencl",useOpenCl);
         req.put("show_diffusion_process",false);
         req.put("preview_format","jpeg");
-        req.put("output_format","raw");
+        // Lossless PNG preserves illustration details and avoids a full-size
+        // raw-RGB -> int[] conversion plus a second pixel buffer on Android.
+        req.put("output_format",NativeImageTransportPolicy.OUTPUT_FORMAT);
         req.put("denoise_strength",source==null?0.6f:0.28f);
         if(stepSeed>=0)req.put("seed",stepSeed);
         if(source!=null){
@@ -385,22 +387,22 @@ public final class LongPromptRunnerActivity extends Activity {
                             stepCount,width,height,elapsed,nativeMs,useOpenCl);
                         ui("Pass "+(index+1)+" finished in "+elapsed+" ms"
                             +(nativeMs>=0?" (native "+nativeMs+" ms)":""));
-                        byte[] bytes=Base64.decode(event.getString("image"),Base64.DEFAULT);
-                        if("raw".equals(event.optString("format","raw"))){
-                            int w=event.optInt("width",width),h=event.optInt("height",height);
-                            if(w<1||h<1||w*h>1024*1024||bytes.length!=w*h*3)
-                                throw new IOException("Invalid local image response");
-                            int[] pixels=new int[w*h];int j=0;
-                            for(int p=0;p<pixels.length;p++){
-                                pixels[p]=0xff000000|((bytes[j++]&255)<<16)
-                                    |((bytes[j++]&255)<<8)|(bytes[j++]&255);
-                            }
-                            Bitmap bitmap=Bitmap.createBitmap(w,h,Bitmap.Config.ARGB_8888);
-                            bitmap.setPixels(pixels,0,w,0,0,w,h);
-                            return bitmap;
-                        }
+                        if(!NativeImageTransportPolicy.OUTPUT_FORMAT.equals(
+                               event.optString("format","")))
+                            throw new IOException("Expected lossless PNG image from native model");
+                        String encoded=event.getString("image");
+                        if(encoded.length()>16_000_000)
+                            throw new IOException("Native PNG response exceeds memory budget");
+                        byte[] bytes=Base64.decode(encoded,Base64.DEFAULT);
+                        int claimedWidth=event.optInt("width",-1);
+                        int claimedHeight=event.optInt("height",-1);
+                        NativeImageTransportPolicy.checkPng(
+                            bytes,width,height,claimedWidth,claimedHeight);
                         Bitmap image=BitmapFactory.decodeByteArray(bytes,0,bytes.length);
-                        if(image==null)throw new IOException("Invalid local bitmap result");
+                        if(image==null||image.getWidth()!=width||image.getHeight()!=height){
+                            if(image!=null)image.recycle();
+                            throw new IOException("Unable to decode lossless native PNG");
+                        }
                         return image;
                     }
                 }
