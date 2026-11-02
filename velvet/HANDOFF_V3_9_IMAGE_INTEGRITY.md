@@ -3,7 +3,7 @@
 Date: 2026-11-02 (Asia/Seoul). Branch `velvet-atelier-apk` of `yeovic/basic-practice-code-from-freecodecamp-and-udemy`.
 
 ## Status
-**Source implementation verified in GitHub Actions.** This handoff was saved while full v3.9 combined APK workflow `41396084187` was running. Check its final status and release assets before claiming the APK is published. Source QA run `41395868369` passed all JVM regressions and Android API 35 Java compilation. The earlier `41395789268` test failed from a test-only non-final lambda capture and was fixed.
+**SOURCE TESTS AND FULL COMBINED APK RELEASE VERIFIED.** Full v3.9 build run `41396084187` completed successfully and the signed APK is published at https://github.com/yeovic/basic-practice-code-from-freecodecamp-and-udemy/releases/tag/velvet-atelier-studio-3-9 . Filename `Velvet_Atelier_Studio_v3_9_Image_Integrity.apk`, 2,026,865,965 bytes, SHA-256 `b4523b71425aae45aab8244653a5b4b700f8c531b99cbfbe7606c5dcd2918fdc`. Android package `org.velvetatelier.studio`, versionCode `390`, versionName `3.9.0`; APK signature scheme v3 verified. Embedded Meina checkpoint validated as 16 archive parts totaling 2,132,651,194 bytes. Separate source QA run `41395868369` passed all JVM regressions and Android API 35 Java compilation. The earlier `41395789268` test failed due to a test-only lambda capture, then was fixed. **Physical-device model conversion and generation remain untested.**
 
 ## Changes from v3.8
 
@@ -26,7 +26,7 @@ Date: 2026-11-02 (Asia/Seoul). Branch `velvet-atelier-apk` of `yeovic/basic-prac
 
 ## QA and release
 - Source QA: https://github.com/yeovic/basic-practice-code-from-freecodecamp-and-udemy/actions/runs/41395868369 — PASS including `EXIF 1–8 rotations...`, `lossless native PNG contract...`, `v3.9 ... Android compilation`, native masked inpaint tests, dynamic context checks and older tests.
-- Combined workflow `.github/workflows/velvet-generation39.yml`: uses verified v2.8.1 Android local backend and bundled 2,132,651,194-byte MeinaHentai checkpoint; includes new + v3.8 Java classes; runs additional regressions, patches APK identity with versionCode=390/versionName=3.9.0, signs APK, verifies DEX classes and model chunks before GitHub release. Verify release completion rather than guessing.
+- Combined workflow `.github/workflows/velvet-generation39.yml`: uses verified v2.8.1 Android local backend and bundled 2,132,651,194-byte MeinaHentai checkpoint; includes new + v3.8 Java classes; runs additional regressions, patches APK identity with versionCode=390/versionName=3.9.0, signs APK, verifies DEX classes and model chunks before GitHub release. Release published and verified by CI; separately confirm phone installation and image production.
 - Repository retains support for GitHub Actions secrets `VELVET_SIGNING_KEYSTORE_B64` and `VELVET_SIGNING_PASSWORD`. No private signing key was configured for previous releases. If v3.9 uses a generated temporary certificate, it cannot be installed over an older Studio with the same package ID but a different certificate. Export character/style cards JSON, verify it, and uninstall old app before installing v3.9; first-run model setup is needed again.
 - CI is NOT proof of phone installation, actual diffusion image production, visual improvement, OpenCL speed, battery or thermal results.
 
