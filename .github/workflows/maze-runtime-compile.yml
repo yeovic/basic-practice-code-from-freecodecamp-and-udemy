@@ -1,4 +1,4 @@
-name: Compile official ARM64 Winlator runtime (NO GAME DATA)
+name: Compile custom MazeCave ARM64 launcher runtime (NO GAME DATA)
 on:
   push:
     branches:
@@ -47,34 +47,66 @@ jobs:
           echo "$SDK/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
           yes | "$SDK/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK" --licenses > /dev/null || true
           "$SDK/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK" --install 'platforms;android-35' 'build-tools;35.0.0' 'ndk;24.0.8215888' 'cmake;3.22.1'
-      - name: Compile official Winlator Android runtime
+      - name: Extract verified game-free MazeCave source (never upload original game)
         shell: bash
         run: |
           set -euo pipefail
-          cd upstream
-          chmod +x ./gradlew
-          ./gradlew --no-daemon assembleDebug --stacktrace
-          test -s app/build/outputs/apk/debug/app-debug.apk
-      - name: Audit compiled artifact without installing it
+          echo '3b757e7368df2acc4fc9de1f6ed1c430b2db401d80c022088cd0a0f308ceb9af  android-runtime/maze-runtime-sources.xz.b64' | sha256sum -c -
+          python3 - <<'PY'
+          import base64,io,lzma,tarfile
+          from pathlib import Path
+          src=Path('android-runtime/maze-runtime-sources.xz.b64')
+          archive=lzma.decompress(base64.b64decode(''.join(src.read_text().split())))
+          out=Path('ci-builder')
+          approved={
+              'patch_winlator.py','runtime_manifest.py','build_runtime_shell.sh',
+              'assemble_private_game_apk.py','assets/controls-7311.icp',
+              'src/MazeCaveBootstrap.java','src/MazeCaveArchiveInstaller.java',
+              'src/MazeCaveTouchMapper.java','src/MazeCaveTouchOverlay.java'
+          }
+          with tarfile.open(fileobj=io.BytesIO(archive),mode='r:') as tar:
+              members=tar.getmembers()
+              assert {m.name for m in members} == approved, 'unexpected source files in public build'
+              for m in members:
+                  assert m.isfile() and m.size<70000, 'unsafe source archive'
+                  dest=out/m.name
+                  dest.parent.mkdir(parents=True,exist_ok=True)
+                  with tar.extractfile(m) as f: dest.write_bytes(f.read())
+          assert not (out/'assets/game.zip').exists(), 'private MazeCave must not enter public CI'
+          print('Audited no-game launcher sources extracted')
+          PY
+      - name: Compile patched Wine runtime with dedicated MazeCave touch launcher
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x upstream/gradlew
+          bash ci-builder/build_runtime_shell.sh upstream runtime-shell-only.apk
+          test -s runtime-shell-only.apk
+      - name: Verify actual Android APK contains source patches but NO GAME
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import zipfile,hashlib
-          p='upstream/app/build/outputs/apk/debug/app-debug.apk'
+          import json,zipfile,hashlib
+          p='runtime-shell-only.apk'
           with zipfile.ZipFile(p) as z:
               names=set(z.namelist())
-              expected=('AndroidManifest.xml','classes.dex','assets/rootfs.tzst','assets/container_pattern.tzst','assets/box64/box64-0.4.4.tzst')
-              missing=[n for n in expected if n not in names]
-              assert not missing, f'Missing runtime APK entries: {missing}'
-              assert any(n.startswith('lib/arm64-v8a/') and n.endswith('.so') for n in names)
-          print('Original-game-free Android runtime APK structure verified')
+              for key in ('AndroidManifest.xml','classes.dex','assets/rootfs.tzst',
+                          'assets/mazecave/game.zip','assets/mazecave/controls-7311.icp',
+                          'assets/mazecave/maze_build_manifest.json'):
+                  assert key in names, 'Missing: '+key
+              manifest=json.loads(z.read('assets/mazecave/maze_build_manifest.json'))
+              assert manifest['payload_mode']=='runtime-shell'
+              assert manifest['identity_mode']=='runtime-compatible'
+              assert z.getinfo('assets/mazecave/game.zip').file_size<500
+              assert any(x.startswith('lib/arm64-v8a/') and x.endswith('.so') for x in names)
+          print('Customized MazeCave runtime shell built. This still has NO ORIGINAL GAME.')
           print('SHA256',hashlib.sha256(open(p,'rb').read()).hexdigest())
           PY
-      - name: Upload genuine compiled runtime (not a playable MazeCave APK)
+      - name: Upload compiled runtime shell (must combine privately with original game)
         uses: actions/upload-artifact@v4
         with:
-          name: official-winlator-11-2-no-game-runtime
-          path: upstream/app/build/outputs/apk/debug/app-debug.apk
+          name: mazecave-custom-runtime-shell-NO-ORIGINAL-GAME
+          path: runtime-shell-only.apk
           retention-days: 1
           if-no-files-found: error
