@@ -51,7 +51,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo '3b757e7368df2acc4fc9de1f6ed1c430b2db401d80c022088cd0a0f308ceb9af  android-runtime/maze-runtime-sources.xz.b64' | sha256sum -c -
+          echo '40234a42d59635aaf81c33801a6745ab985790b760a8eb044af414b9b7df56f5  android-runtime/maze-runtime-sources.xz.b64' | sha256sum -c -
           python3 - <<'PY'
           import base64,io,lzma,tarfile
           from pathlib import Path
