@@ -1,0 +1,70 @@
+name: Compile official ARM64 Winlator runtime (NO GAME DATA)
+on:
+  push:
+    branches:
+      - maze-android-runtime-build
+    paths:
+      - .github/workflows/maze-runtime-compile.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  compile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 70
+    steps:
+      - name: Checkout isolated CI branch
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Java 17 for Android Gradle Plugin
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Checkout audited Winlator 11.2 source (NO MAZECAVE)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir upstream
+          git -C upstream init -q
+          git -C upstream fetch --depth=1 https://github.com/brunodev85/winlator-app.git a5449107f53493ef76c7461b1b8ee5e3dcf35982
+          git -C upstream checkout --detach --force FETCH_HEAD
+          test "$(git -C upstream rev-parse HEAD)" = a5449107f53493ef76c7461b1b8ee5e3dcf35982
+          echo "SOURCE_SHA=$(git -C upstream rev-parse HEAD)" >> "$GITHUB_ENV"
+      - name: Install Android 35, CMake 3.22, NDK 24
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager --install 'platforms;android-35' 'build-tools;35.0.0' 'ndk;24.0.8215888' 'cmake;3.22.1'
+      - name: Compile official Winlator Android runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd upstream
+          chmod +x ./gradlew
+          ./gradlew --no-daemon assembleDebug --stacktrace
+          test -s app/build/outputs/apk/debug/app-debug.apk
+      - name: Audit compiled artifact without installing it
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import zipfile,hashlib
+          p='upstream/app/build/outputs/apk/debug/app-debug.apk'
+          with zipfile.ZipFile(p) as z:
+              names=set(z.namelist())
+              expected=('AndroidManifest.xml','classes.dex','assets/rootfs.tzst','assets/container_pattern.tzst','assets/box64/box64-0.4.4.tzst')
+              missing=[n for n in expected if n not in names]
+              assert not missing, f'Missing runtime APK entries: {missing}'
+              assert any(n.startswith('lib/arm64-v8a/') and n.endswith('.so') for n in names)
+          print('Original-game-free Android runtime APK structure verified')
+          print('SHA256',hashlib.sha256(open(p,'rb').read()).hexdigest())
+          PY
+      - name: Upload genuine compiled runtime (not a playable MazeCave APK)
+        uses: actions/upload-artifact@v4
+        with:
+          name: official-winlator-11-2-no-game-runtime
+          path: upstream/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 1
+          if-no-files-found: error
