@@ -1,4 +1,4 @@
-name: Compile custom MazeCave ARM64 launcher runtime (NO GAME DATA)
+name: Compile isolated MazeCave ARM64 launcher runtime (NO GAME DATA)
 on:
   push:
     branches:
@@ -75,6 +75,45 @@ jobs:
           assert not (out/'assets/game.zip').exists(), 'private MazeCave must not enter public CI'
           print('Audited no-game launcher sources extracted')
           PY
+      - name: Isolate MazeCave package and fix Winlator native paths (NO GAME)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          builder=Path('ci-builder')
+          f=builder/'patch_winlator.py'
+          s=f.read_text()
+          old="APP_ID = 'com.hgames.mazecave'"
+          assert s.count(old)==1
+          f.write_text(s.replace(old,"APP_ID = 'com.mazecave'"))
+          b=builder/'build_runtime_shell.sh'
+          s=b.read_text()
+          old='--identity-mode runtime-compatible'
+          assert s.count(old)==1
+          b.write_text(s.replace(old,'--identity-mode isolated'))
+          a=builder/'assemble_private_game_apk.py'
+          s=a.read_text()
+          old="manifest.get('identity_mode') != 'runtime-compatible' or manifest.get('application_id') != 'com.winlator'"
+          assert s.count(old)==1
+          a.write_text(s.replace(old,"manifest.get('identity_mode') != 'isolated' or manifest.get('application_id') != 'com.mazecave'"))
+          # Preserve Java classes com.winlator.*; change only C runtime absolute data directory.
+          # Winlator's package-specific C header is handled separately by patch_winlator.py.
+          native=Path('upstream/app/src/main/cpp')
+          needle=b'/data/data/com.winlator'
+          replacement=b'/data/data/com.mazecave'
+          assert len(needle)==len(replacement)
+          changed=[]
+          for path in native.rglob('*'):
+              if not path.is_file() or path.suffix not in ('.c','.cc','.cpp','.h','.hpp'): continue
+              if path.name=='winlator.h' and path.parent.name=='include' and path.parent.parent.name=='winlator': continue
+              raw=path.read_bytes()
+              if needle in raw:
+                  path.write_bytes(raw.replace(needle,replacement))
+                  changed.append((str(path),raw.count(needle)))
+          assert changed, 'No native paths were updated; upstream changed'
+          print('Isolated package:', 'com.mazecave', 'native path replacements:',changed)
+          PY
       - name: Compile patched Wine runtime with dedicated MazeCave touch launcher
         shell: bash
         run: |
@@ -97,7 +136,8 @@ jobs:
                   assert key in names, 'Missing: '+key
               manifest=json.loads(z.read('assets/mazecave/maze_build_manifest.json'))
               assert manifest['payload_mode']=='runtime-shell'
-              assert manifest['identity_mode']=='runtime-compatible'
+              assert manifest['identity_mode']=='isolated'
+              assert manifest['application_id']=='com.mazecave'
               assert z.getinfo('assets/mazecave/game.zip').file_size<500
               assert any(x.startswith('lib/arm64-v8a/') and x.endswith('.so') for x in names)
           print('Customized MazeCave runtime shell built. This still has NO ORIGINAL GAME.')
@@ -106,7 +146,7 @@ jobs:
       - name: Upload compiled runtime shell (must combine privately with original game)
         uses: actions/upload-artifact@v4
         with:
-          name: mazecave-custom-runtime-shell-NO-ORIGINAL-GAME
+          name: mazecave-isolated-runtime-shell-NO-ORIGINAL-GAME
           path: runtime-shell-only.apk
           retention-days: 1
           if-no-files-found: error
