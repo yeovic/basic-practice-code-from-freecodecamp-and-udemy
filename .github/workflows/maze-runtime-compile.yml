@@ -99,6 +99,12 @@ jobs:
           a.write_text(s.replace(old,"manifest.get('identity_mode') != 'isolated' or manifest.get('application_id') != 'com.mazecave'"))
           # Preserve Java classes com.winlator.*; change only C runtime absolute data directory.
           # Winlator's package-specific C header is handled separately by patch_winlator.py.
+          # Any Java literal of the old private data directory must also be moved.
+          # Keep com.winlator.* Java class names untouched.
+          for source in Path('upstream/app/src/main/java').rglob('*.java'):
+              content=source.read_bytes()
+              if b'/data/data/com.winlator' in content:
+                  source.write_bytes(content.replace(b'/data/data/com.winlator',b'/data/data/com.mazecave'))
           native=Path('upstream/app/src/main/cpp')
           needle=b'/data/data/com.winlator'
           replacement=b'/data/data/com.mazecave'
